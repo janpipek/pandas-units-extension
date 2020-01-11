@@ -28,3 +28,4 @@ speed = df["distance"] / df["time"]
 speed.units.to_si()
 ```
 
+See [doc/units.ipynb](doc/units.ipynb) for more.
