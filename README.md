@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-pip install pandas-units-extension
+pip install -e .   # Will be in PyPI maybe
 ```
 
 ## Examples
