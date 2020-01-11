@@ -1,5 +1,9 @@
 # Extension pandas dtype and array for physical units
 
+## History
+
+Originally created for PyCon CZ 2019 (and later BI Fórum Budapest / PyData Cambridge the same year).
+
 ## Installation
 
 ```bash
