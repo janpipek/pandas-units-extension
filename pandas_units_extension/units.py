@@ -1,27 +1,25 @@
-from typing import Any, Union
 import builtins
-import re
 import operator
+import re
 import sys
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
 from astropy import units as u
-from astropy.units import Quantity, Unit
-from astropy.units import imperial
+from astropy.units import Quantity, Unit, imperial
 from astropy.units.format.generic import Generic
 from pandas.api.extensions import (
     ExtensionArray,
     ExtensionDtype,
     ExtensionScalarOpsMixin,
+    register_dataframe_accessor,
     register_extension_dtype,
     register_series_accessor,
-    register_dataframe_accessor,
 )
-from pandas.api.types import is_list_like, is_array_like, is_scalar
+from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
-from pandas.core import nanops
-from pandas.core import ops
+from pandas.core import nanops, ops
 from pandas.core.algorithms import take
 from pandas.core.dtypes.generic import ABCIndexClass, ABCSeries
 
@@ -53,14 +51,14 @@ class UnitsDtype(ExtensionDtype):
     _is_numeric = False
     _metadata = ("unit",)
 
-    def __init__(self, unit=None):
+    def __init__(self, unit: Union[None, str, Unit] = None):
         if isinstance(unit, (Unit, type(None))):
             self.unit = unit
         else:
             self.unit = Unit(unit)
 
     @classmethod
-    def construct_from_string(cls, string) -> "UnitsDtype":
+    def construct_from_string(cls, string: str) -> "UnitsDtype":
         if string == cls.BASE_NAME:
             return cls()
         match = re.match(f"{cls.BASE_NAME}\\[(?P<name>.*)\\]$", string)

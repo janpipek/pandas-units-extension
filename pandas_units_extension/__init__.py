@@ -1,4 +1,4 @@
-"""Extension unit and array for pandas.
+"""Extension pandas dtype and array for physical units.
 
 It is based on astropy Quantities.
 
@@ -15,6 +15,7 @@ Examples
     1     7.0 km / h
     dtype: unit[km / h]
 """
+
 __all__ = [
     "as_quantity",
     "convert",
@@ -24,17 +25,18 @@ __all__ = [
     "UnitsDataFrameAccessor",
     "Unit",
     "__version__",
+    "__url__",
+    "__author__",
+    "__author_email__",
 ]
 
-__version__ = "0.1.0"
-
 from .units import (
-    UnitsDtype,
-    as_quantity,
-    convert,
-    UnitsExtensionArray,
     Unit,
     UnitsDataFrameAccessor,
-    UnitsSeriesAccessor,
     UnitsDtype,
+    UnitsExtensionArray,
+    UnitsSeriesAccessor,
+    as_quantity,
+    convert,
 )
+from .version import __author__, __author_email__, __url__, __version__
