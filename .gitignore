@@ -1,3 +1,7 @@
 /poetry.lock
 /dist
 *pyc
+*egg-info
+doc/.ipynb_checkpoints/
+
+.idea/
