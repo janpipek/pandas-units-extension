@@ -439,16 +439,16 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
 
 
 class TestVarious(BaseExtensionTests):
-    @pytest.mark.skip("Don't know how to implement this correctly.")
+    @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
     def test_concat_incompatible(self):
         s1 = pd.Series(["1 m"], dtype="unit")
         s2 = pd.Series(["1 ft"], dtype="unit")
-        concatenated = pd.concat([s1.units, s2.units]).reset_index(drop=True)
+        concatenated = pd.concat([s1, s2]).reset_index(drop=True)
         expected = pd.Series(["1 m", "0.3048 m"], dtype="unit")
         self.assert_series_equal(expected, concatenated)
         # :-( Returns converted to float.
 
-    @pytest.mark.skip("Don't know how to implement this correctly.")
+    @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
     def test_add_new_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
         s1.at[1] = Quantity("1 ft")
