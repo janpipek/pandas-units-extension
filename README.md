@@ -9,7 +9,13 @@ Originally created for PyCon CZ 2019 (and later BI Fórum Budapest / PyData Camb
 ## Installation
 
 ```bash
-pip install -e .   # Will be in PyPI maybe
+pip install pandas-units-extensions
+```
+
+For development:
+
+```bash
+pip install -e .
 ```
 
 ## Examples
