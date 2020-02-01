@@ -4,4 +4,7 @@
 *egg-info
 doc/.ipynb_checkpoints/
 
+.pytest_cache/
+
 .idea/
+.vscode/
