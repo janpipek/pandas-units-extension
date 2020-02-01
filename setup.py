@@ -37,7 +37,7 @@ SETUP_OPTIONS = dict(
     author_email=INFO["__author_email__"],
     long_description=read_description(),
     url=INFO["__url__"],
-    install_requires=["pandas~=1.0", "astropy~=4.0"],
+    install_requires=["pandas>=0.25.3, <1.0", "astropy~=4.0"],
     python_requires=">=3.6",
 )
 
