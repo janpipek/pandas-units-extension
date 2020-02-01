@@ -1,5 +1,7 @@
 # Extension pandas dtype and array for physical units
 
+**Warning:** Not fully compatible with pandas yet, especially not so for 1.0. Some operations may or may not work, while common ones should.
+
 ## History
 
 Originally created for PyCon CZ 2019 (and later BI Fórum Budapest / PyData Cambridge the same year).
