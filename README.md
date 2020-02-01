@@ -33,3 +33,8 @@ speed.units.to_si()
 ```
 
 See [doc/units.ipynb](doc/units.ipynb) for more.
+
+## Links
+
+- <https://www.astropy.org/>
+- <https://pint.readthedocs.io/en/0.10.1/pint-pandas.html> - Another library supporting units inside pandas.
