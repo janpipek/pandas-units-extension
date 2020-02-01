@@ -253,19 +253,18 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         else:
             if pd.api.types.is_list_like(item):
                 item = pd.array(item)
-            if _PANDAS_V1:  # TODO: Check validity in 0.25
-                from pandas.core.arrays import BooleanArray, IntegerArray
-                _raise = False
+                from pandas.core.arrays import IntegerArray
 
-                if isinstance(item, (BooleanArray, IntegerArray)):
+                if _PANDAS_V1:
+                    from pandas.core.arrays import BooleanArray
                     if isinstance(item, BooleanArray):
                         if any(item.isna()):
                             raise ValueError("'Cannot mask with a boolean indexer containing NA values")
                         item = item.to_numpy(dtype="bool")
-                    elif isinstance(item, IntegerArray):
-                        if any(item.isna()):
-                            raise ValueError("Cannot index with an integer indexer containing NA values")
-                        item = item.to_numpy(dtype="int64")
+                elif isinstance(item, IntegerArray):
+                    if any(item.isna()):
+                        raise ValueError("Cannot index with an integer indexer containing NA values")
+                    item = item.to_numpy(dtype="int64")
             return self.__class__(self.value[item], unit=self.unit)
 
     def __setitem__(self, key, value):
