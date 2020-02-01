@@ -246,7 +246,7 @@ class TestNumericReduce(base.BaseNumericReduceTests):
         # We must check float values
         result = getattr(s, op_name)(skipna=skipna).value
         expected = getattr(s.astype("float64"), op_name)(skipna=skipna)
-        tm.assert_almost_equal(result, expected)
+        np.testing.assert_almost_equal(result, expected)
 
     # We include some trusted results on top of pandas' ones
     def test_sum(self, data, data_missing):

@@ -225,6 +225,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def view(self, dtype=None) -> "UnitsExtensionArray":
         """Create a new object with same data behind it."""
+        # TODO: Useful also for 0.25???
         if dtype is not None:
             # TODO: Perhaps implement?
             raise NotImplementedError(dtype)
@@ -241,8 +242,14 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return lambda x: (str(x) if isinstance(x, Quantity) else f"{x} {self.unit}")
 
     def __getitem__(self, item):
-        if np.isscalar(item):
+        if isinstance(item, slice):
+            if item == slice(None):  # [:] should return a view
+                return self.view()
+            return self.__class__(self.value[item], unit=self.unit)
+
+        elif np.isscalar(item):
             return Quantity(self.value[item], unit=self.unit)
+
         else:
             if pd.api.types.is_list_like(item):
                 item = pd.array(item)
