@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-import pandas.util.testing as tm
-import pytest
+import pandas.testing as tm
 from astropy.units import m
 from astropy.units import Quantity
 from astropy.units import Unit
@@ -217,7 +216,7 @@ class TestInterface(base.BaseInterfaceTests):
 
         result = np.array(data.value, dtype=object)
         expected = np.array(list(data.value), dtype=object)
-        tm.assert_numpy_array_equal(result, expected)
+        np.testing.assert_array_equal(result, expected)
 
 
 class TestMethods(base.BaseMethodsTests):
@@ -247,7 +246,7 @@ class TestNumericReduce(base.BaseNumericReduceTests):
         # We must check float values
         result = getattr(s, op_name)(skipna=skipna).value
         expected = getattr(s.astype("float64"), op_name)(skipna=skipna)
-        tm.assert_almost_equal(result, expected)
+        np.testing.assert_almost_equal(result, expected)
 
     # We include some trusted results on top of pandas' ones
     def test_sum(self, data, data_missing):
@@ -338,7 +337,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         result = s1 + s2
         self.assert_series_equal(expected, result)
 
-    @pytest.mark.skip("Not implemented yet")
+    @pytest.mark.xfail(reason="Not implemented yet")
     def test_divmod(self, data):
         raise NotImplementedError
 
