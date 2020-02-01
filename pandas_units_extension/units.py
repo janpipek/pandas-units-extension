@@ -26,6 +26,8 @@ from pandas.core.dtypes.generic import ABCIndexClass, ABCSeries
 # Imperial units enabled by default
 imperial.enable()
 
+_PANDAS_V1 = pd.__version__ > "1."
+
 
 class InvalidUnitConversion(ValueError):
     """The unit cannot be converted to another one."""
@@ -63,7 +65,7 @@ class UnitsDtype(ExtensionDtype):
             return cls()
         match = re.match(f"{cls.BASE_NAME}\\[(?P<name>.*)\\]$", string)
         if not match:
-            raise TypeError(f"Invalid UnitsDtype string: '{string}'")
+            raise TypeError(f"Cannot construct a 'UnitsDtype' from '{string}'")
         return cls(match["name"])
 
     @classmethod
@@ -158,7 +160,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def __len__(self) -> int:
         return len(self.value)
 
-    def __array__(self, dtype=None) -> np.ndarray:
+    def __array__(self, dtype=object) -> np.ndarray:
         """Implicit conversion to numpy array."""
         return self.value.astype(dtype) if dtype else self.value
 
@@ -232,6 +234,21 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         if np.isscalar(item):
             return Quantity(self.value[item], unit=self.unit)
         else:
+            if pd.api.types.is_list_like(item):
+                item = pd.array(item)
+            if _PANDAS_V1:  # TODO: Check validity in 0.25
+                from pandas.core.arrays import BooleanArray, IntegerArray
+                _raise = False
+
+                if isinstance(item, (BooleanArray, IntegerArray)):
+                    if isinstance(item, BooleanArray):
+                        if any(item.isna()):
+                            raise ValueError("'Cannot mask with a boolean indexer containing NA values")
+                        item = item.to_numpy(dtype="bool")
+                    elif isinstance(item, IntegerArray):
+                        if any(item.isna()):
+                            raise ValueError("Cannot index with an integer indexer containing NA values")
+                        item = item.to_numpy(dtype="int64")
             return self.__class__(self.value[item], unit=self.unit)
 
     def __setitem__(self, key, value):

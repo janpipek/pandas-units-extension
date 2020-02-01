@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
-import pandas.util.testing as tm
-import pytest
+import pandas.testing as tm
 from astropy.units import m
 from astropy.units import Quantity
 from astropy.units import Unit
@@ -217,7 +216,7 @@ class TestInterface(base.BaseInterfaceTests):
 
         result = np.array(data.value, dtype=object)
         expected = np.array(list(data.value), dtype=object)
-        tm.assert_numpy_array_equal(result, expected)
+        np.testing.assert_array_equal(result, expected)
 
 
 class TestMethods(base.BaseMethodsTests):
@@ -338,7 +337,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         result = s1 + s2
         self.assert_series_equal(expected, result)
 
-    @pytest.mark.skip("Not implemented yet")
+    @pytest.mark.xfail(reason="Not implemented yet")
     def test_divmod(self, data):
         raise NotImplementedError
 
