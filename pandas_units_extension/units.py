@@ -223,6 +223,16 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Fall-back to default variant
         return ExtensionArray.astype(self, dtype, copy=copy)
 
+    def view(self, dtype=None) -> "UnitsExtensionArray":
+        """Create a new object with same data behind it."""
+        if dtype is not None:
+            # TODO: Perhaps implement?
+            raise NotImplementedError(dtype)
+        result = UnitsExtensionArray.__new__(UnitsExtensionArray)
+        result._dtype = self.dtype
+        result._value = self.value
+        return result
+
     def _formatter(self, boxed: bool = False):
         """Formatter to always include unit name in the output.
 
