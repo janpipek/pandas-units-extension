@@ -160,9 +160,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def __len__(self) -> int:
         return len(self.value)
 
-    def __array__(self, dtype=object) -> np.ndarray:
+    def __array__(self, dtype=object, copy=None) -> np.ndarray:
         """Implicit conversion to numpy array."""
-        return self.value.astype(dtype) if dtype else self.value
+        return self.value.astype(dtype, copy=copy) if dtype else np.asarray(self.value, copy=copy)
 
     @property
     def nbytes(self) -> int:
