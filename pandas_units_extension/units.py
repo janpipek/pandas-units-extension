@@ -348,7 +348,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 return result_q
 
         # Get info about the operator
-        op_name = ops._get_op_name(op, True)
+        op_name = ops.__name__
         is_comparison = op_name in [
             "__eq__",
             "__ne__",
