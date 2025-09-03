@@ -306,7 +306,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return np.isnan(self.value)
 
     @classmethod
-    def _create_method(cls, op, coerce_to_dtype=True):
+    def _create_method(cls, op, coerce_to_dtype=True, result_dtype=None):
         # Overriden from the default variant
         # to by-pass conversion to numpy arrays.
         def _invalid_operator():
