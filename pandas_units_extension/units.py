@@ -21,7 +21,7 @@ from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops, ops
 from pandas.core.algorithms import take
-from pandas.core.dtypes.generic import ABCIndexClass, ABCSeries
+from pandas.core.dtypes.generic import ABCIndex, ABCSeries
 
 # Imperial units enabled by default
 imperial.enable()
@@ -316,7 +316,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 raise TypeError
 
         def _binop(self, other):
-            if isinstance(other, (ABCSeries, ABCIndexClass)):
+            if isinstance(other, (ABCSeries, ABCIndex)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
