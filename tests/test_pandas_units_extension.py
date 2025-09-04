@@ -168,7 +168,7 @@ class TestCasting(base.BaseCastingTests):
         s = pd.Series([3, 4], dtype="unit[m]")
         result = s.astype("unit[cm]")
         expected = pd.Series([300, 400], dtype="unit[cm]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("generic", [False, True])
     def test_convert_from_object(self, generic):
@@ -176,19 +176,19 @@ class TestCasting(base.BaseCastingTests):
         dtype = "unit" if generic else "unit[m]"
         result = s.astype(dtype)
         expected = pd.Series([2, 3], dtype="unit[m]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     def test_convert_from_timedelta(self):
         s = pd.Series(pd.timedelta_range(0, periods=3, freq="h"))
         result = s.astype("unit")
         expected = pd.Series([0, 3600, 7200], dtype="unit[s]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     def test_astype_timedelta(self):
         s = pd.Series([0, 1, 2], dtype="unit[h]")
         result = s.astype("timedelta64[ns]")
         expected = pd.Series(pd.timedelta_range(0, periods=3, freq="h"))
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
 
 class TestDtype(base.BaseDtypeTests):
@@ -205,7 +205,7 @@ class TestGetitem(base.BaseGetitemTests):
         new_index = [2, 4]
         result = series.reindex(new_index)
         expected = pd.Series([2, np.nan], dtype="unit[]", index=new_index)
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
 
 class TestInterface(base.BaseInterfaceTests):
@@ -293,7 +293,7 @@ class TestParsing(base.BaseParsingTests):
         dtype = "unit" if generic else "unit[m]"
         result = pd.Series(source, dtype=dtype)
         expected = pd.Series([1, 2], dtype="unit[m]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
 
 class TestMissing(base.BaseMissingTests):
@@ -314,11 +314,11 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         s = pd.Series(data)
         result = s ** 2
         expected = pd.Series([1, 4] + 98 * [9], dtype="unit[m^2]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
         result2 = s ** (-2)
         expected2 = pd.Series([1, 1 / 4] + 98 * [1 / 9], dtype="unit[m^(-2)]")
-        self.assert_series_equal(result2, expected2)
+        tm.assert_series_equal(result2, expected2)
 
     def test_error(self, data, all_arithmetic_operators):
         pass
@@ -335,7 +335,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
         expected = pd.Series([3001, 4002, 3003, 4004], dtype="unit[m]")
         result = s1 + s2
-        self.assert_series_equal(expected, result)
+        tm.assert_series_equal(expected, result)
 
     @pytest.mark.xfail(reason="Not implemented yet")
     def test_divmod(self, data):
@@ -352,7 +352,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
         result = s1 < s3
         expected = pd.Series([False, True, False])
-        self.assert_series_equal(expected, result)
+        tm.assert_series_equal(expected, result)
 
     def test_temperature_comparison(self):
         s1 = pd.Series([0, -10, 10], dtype="unit[deg_C]")
@@ -360,7 +360,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
         result = s1 < s2
         expected = pd.Series([False, True, False])
-        self.assert_series_equal(expected, result)
+        tm.assert_series_equal(expected, result)
 
     def test_incomparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
@@ -399,7 +399,7 @@ class TestUnitsSeriesAccessor(BaseOpsUtil):
         s = pd.Series(simple_data)
         result = s.units.to("mm")
         expected = pd.Series([1000, 2000, 3000], dtype="unit[mm]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     def test_unit(self, simple_data):
         s = pd.Series(simple_data)
@@ -409,14 +409,14 @@ class TestUnitsSeriesAccessor(BaseOpsUtil):
         s = pd.Series([1, 2, 3], dtype="unit[km]")
         result = s.units.to_si()
         expected = pd.Series([1000, 2000, 3000], dtype="unit[m]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     def test_temperature(self):
         s = pd.Series([0, 100], dtype="unit[deg_C]")
 
         s_f = s.units.to("deg_F")
         s_f_expected = pd.Series([32, 212], dtype="unit[deg_F]")
-        self.assert_series_equal(s_f, s_f_expected)
+        tm.assert_series_equal(s_f, s_f_expected)
 
 
 class TestUnitsDataFrameAccessor(BaseOpsUtil):
@@ -434,7 +434,7 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
                 "b": pd.Series([7200, 10800, 14400], dtype="unit[s]"),
             }
         )
-        self.assert_frame_equal(result, expected)
+        tm.assert_frame_equal(result, expected)
 
 
 class TestVarious(BaseExtensionTests):
@@ -444,7 +444,7 @@ class TestVarious(BaseExtensionTests):
         s2 = pd.Series(["1 ft"], dtype="unit")
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
         expected = pd.Series(["1 m", "0.3048 m"], dtype="unit")
-        self.assert_series_equal(expected, concatenated)
+        tm.assert_series_equal(expected, concatenated)
         # :-( Returns converted to float.
 
     @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
@@ -452,14 +452,14 @@ class TestVarious(BaseExtensionTests):
         s1 = pd.Series(["1 m"], dtype="unit")
         s1.at[1] = Quantity("1 ft")
         expected = pd.Series(["1.0 m", "0.3048 m"], dtype="unit")
-        self.assert_series_equal(expected, s1)
+        tm.assert_series_equal(expected, s1)
         # :-( Returns converted to float.
 
     def test_set_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
         s1[0] = Quantity("1 ft")
         expected = pd.Series(["0.3048 m"], dtype="unit")
-        self.assert_series_equal(expected, s1)
+        tm.assert_series_equal(expected, s1)
 
     def test_unique(self):
         s = Series([1, np.nan, np.nan], dtype="unit[m]")
