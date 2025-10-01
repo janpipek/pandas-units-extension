@@ -235,17 +235,15 @@ class TestReshaping(base.BaseReshapingTests):
     test_unstack = None
 
 
-class TestBooleanReduce(base.BaseBooleanReduceTests):
-    def check_reduce(self, s, op_name, skipna):
-        with pytest.raises(TypeError):
-            getattr(s, op_name)(skipna=skipna)
+class TestReduce(base.BaseReduceTests):
+    def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
+        # List all supported numeric reductions
+        return op_name in {"sum", "max", "min", "mean", "std", "var", "median"}
 
-
-class TestNumericReduce(base.BaseNumericReduceTests):
-    def check_reduce(self, s, op_name, skipna):
+    def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
         # We must check float values
-        result = getattr(s, op_name)(skipna=skipna).value
-        expected = getattr(s.astype("float64"), op_name)(skipna=skipna)
+        result = getattr(ser, op_name)(skipna=skipna).value
+        expected = getattr(ser.astype("float64"), op_name)(skipna=skipna)
         np.testing.assert_almost_equal(result, expected)
 
     # We include some trusted results on top of pandas' ones
