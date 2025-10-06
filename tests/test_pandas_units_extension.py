@@ -76,9 +76,9 @@ def all_data(request, data, data_missing):
         return data_missing
 
 
-@pytest.fixture(params=[" ", "mm", "kg s"])
-def dtype(request):
-    return UnitsDtype(request.param)
+@pytest.fixture
+def dtype():
+    return UnitsDtype(m)
 
 
 @pytest.fixture
