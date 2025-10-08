@@ -439,7 +439,7 @@ class UnitsSeriesAccessor:
         unit = self.obj.array.unit
         formatter = Generic()
         formatter._show_scale = False
-        new_unit = Unit(formatter.to_string(unit.si))
+        new_unit = Unit(formatter.to_string(unit.si.bases[0]))
         return self.to(new_unit)
 
 
