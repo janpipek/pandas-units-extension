@@ -134,6 +134,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         else:
             q = as_quantity(array)
             if q.unit.is_unity():
+                if isinstance(unit, str):
+                    unit = Unit(unit)
                 if unit:
                     q = q * unit
             else:
