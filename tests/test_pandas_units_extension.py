@@ -138,6 +138,9 @@ def data_repeated(data):
 _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
 #'kurt', 'skew']
 
+@pytest.fixture
+def sort_by_key():
+    return None
 
 @pytest.fixture(params=_all_numeric_reductions)
 def all_numeric_reductions(request):
