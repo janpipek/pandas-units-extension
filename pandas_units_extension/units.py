@@ -399,6 +399,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         elif name in to_implement_yet:
             raise NotImplementedError
 
+    def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
+        """Generate values for factorization"""
+        return self.value, None
+
     @classmethod
     def _from_factorized(cls, values, original) -> "UnitsExtensionArray":
         return UnitsExtensionArray(values, original.dtype.unit)
