@@ -61,6 +61,10 @@ class UnitsDtype(ExtensionDtype):
 
     @classmethod
     def construct_from_string(cls, string: str) -> "UnitsDtype":
+        if not isinstance(string, str):
+            raise TypeError(
+                f"'construct_from_string' expects a string, got {type(string)}"
+            )
         if string == cls.BASE_NAME:
             return cls()
         match = re.match(f"{cls.BASE_NAME}\\[(?P<name>.*)\\]$", string)
