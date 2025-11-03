@@ -320,6 +320,19 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _create_method(cls, op, coerce_to_dtype=True, result_dtype=None):
         # Overriden from the default variant
         # to by-pass conversion to numpy arrays.
+
+        # Get info about the operator
+        op_name = getattr(op, "__name__", str(op))
+        is_comparison = op_name in [
+            "eq", "__eq__",
+            "ne", "__ne__",
+            "lt", "__lt__",
+            "gt", "__gt__",
+            "le", "__le__",
+            "ge", "__ge__",
+        ]
+        is_equality = op_name in ["eq", "ne", "__eq__", "__ne__"]
+        
         def _invalid_operator():
             if is_equality:
                 return NotImplemented
@@ -357,18 +370,6 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 return cls(result_q)
             else:
                 return result_q
-
-        # Get info about the operator
-        op_name = ops.__name__
-        is_comparison = op_name in [
-            "__eq__",
-            "__ne__",
-            "__lt__",
-            "__gt__",
-            "__le__",
-            "__ge__",
-        ]
-        is_equality = op_name in ["__eq__", "__ne__"]
 
         return set_function_name(_binop, op_name, cls)
 
