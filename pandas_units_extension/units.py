@@ -178,6 +178,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _from_sequence(cls, scalars, dtype=None, copy=False) -> "UnitsExtensionArray":
         if dtype:
             result = cls(scalars, unit=dtype.unit, copy=copy)
+        elif getattr(scalars, "dtype", None) and scalars.dtype == np.bool:
+            # Note that Quantity does support boolean arrays, treating `True` as `1` and `False` as 0,
+            # but this causes issues with pandas.Series.combine and can lead to rather unexpected
+            # behavior: `u.Quantity(True, u.m) == 1 * u.m` -> `True`, therefore we disallow it here.
+            raise NotImplementedError("Conversion of boolean array to Quantity not allowed.")
         else:
             result = cls(scalars, copy=copy)
         return result
