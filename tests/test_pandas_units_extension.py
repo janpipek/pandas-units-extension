@@ -142,6 +142,10 @@ _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
 def sort_by_key():
     return None
 
+@pytest.fixture(params=[operator.eq, operator.ne, operator.le, operator.lt, operator.ge, operator.gt])
+def comparison_op(request):
+    return request.param
+
 @pytest.fixture(params=_all_numeric_reductions)
 def all_numeric_reductions(request):
     return request.param
