@@ -41,6 +41,16 @@ if pd.__version__ < "3.0.0":
     import pandas._libs.lib as lib
     lib.item_from_zerodim = item_from_zerodim_new
 
+# TODO: Remove once pandas 3.1.0 is released
+if pd.__version__ < "3.1.0":
+    # Monkey Patch for pandas version < 3.1.0 where comparison_op is not yet fixed
+    # See issue: https://github.com/pandas-dev/pandas/issues/63205
+    # See pull request: https://github.com/pandas-dev/pandas/pull/63659
+    from .new_comparison_op import comparison_op_new
+    pd.core.ops.comparison_op = comparison_op_new
+    pd.core.ops.array_ops.comparison_op = comparison_op_new
+    pd.core.indexes.base.ops.comparison_op = comparison_op_new
+    pd.core.series.ops.comparison_op = comparison_op_new
 
 class InvalidUnitConversion(ValueError):
     """The unit cannot be converted to another one."""
