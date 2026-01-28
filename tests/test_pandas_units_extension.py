@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pandas.core import ops
 import pandas.testing as tm
 from astropy.units import m
 from astropy.units import Quantity
@@ -310,7 +311,7 @@ class TestPrinting(base.BasePrintingTests):
 
 
 class TestArithmeticsOps(base.BaseArithmeticOpsTests):
-    # divmod_exc = None
+    divmod_exc = None
     series_scalar_exc = None
     frame_scalar_exc = None
     series_array_exc = None
@@ -342,9 +343,11 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         result = s1 + s2
         tm.assert_series_equal(expected, result)
 
-    @pytest.mark.xfail(reason="Not implemented yet")
     def test_divmod(self, data):
-        raise NotImplementedError
+        """Overwritten from base class to compare with Quantity object instead of dimensionless 0"""
+        ser = pd.Series(data)
+        self._check_divmod_op(ser, divmod, ser[0])
+        self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):

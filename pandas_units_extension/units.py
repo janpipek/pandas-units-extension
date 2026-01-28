@@ -401,6 +401,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             "ge", "__ge__",
         ]
         is_equality = op_name in ["eq", "ne", "__eq__", "__ne__"]
+        is_divmod = op_name in ["divmod", "__divmod__", "rdivmod", "__rdivmod__"]
         
         def _invalid_operator():
             if is_equality:
@@ -435,9 +436,15 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                         return _invalid_operator()
 
             result_q = op(self_q, other_q)
-            if coerce_to_dtype:
-                return cls(result_q)
+
+            # Divmod returns tuple of two Quantity objects and they have to be handled separately
+            if is_divmod:
+                if coerce_to_dtype:
+                    return cls(result_q[0]), cls(result_q[1])
+                return result_q[0], result_q[1]
             else:
+                if coerce_to_dtype:
+                    return cls(result_q)
                 return result_q
 
         return set_function_name(_binop, op_name, cls)
