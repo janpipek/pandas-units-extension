@@ -3,6 +3,7 @@ import operator
 import re
 import sys
 from typing import Any, Union
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ from pandas.compat import set_function_name
 from pandas.core import nanops, ops
 from pandas.core.algorithms import take
 from pandas.core.dtypes.generic import ABCIndex, ABCSeries, ABCDataFrame
+from pandas.util._exceptions import find_stack_level
 
 # Imperial units enabled by default
 imperial.enable()
@@ -222,6 +224,45 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         values = [Quantity(s) for s in strings]
         unit = dtype.unit if dtype else None
         return UnitsExtensionArray(values, unit)
+
+    @classmethod
+    def _from_scalars(cls, scalars, *, dtype=None) -> "UnitsExtensionArray":
+        """
+        Contrary to the superclass, this function will ignore the `dtype`
+        if given, and will always try to infer the `dtype` from the scalars.
+        This is due to arithmetic operation that are changing the unit and
+        thereby the `dtype`. The `dtype` giving to this function comes from
+        `self.dtype` in `_cast_pointwise_result`, but `self.dtype` is only the
+        original `dtype` of the left operand, not necessarily the correct
+        `dtype` of the result.
+
+        Parameters
+        ----------
+        scalars : sequence
+        dtype : ExtensionDtype
+
+        Raises
+        ------
+        TypeError or ValueError
+
+        Notes
+        -----
+        This is called in a try/except block when casting the result of a
+        pointwise operation in `ExtensionArray._cast_pointwise_result`.
+        """
+        try:
+            result: UnitsExtensionArray = cls._from_sequence(scalars)
+        except (ValueError, TypeError):
+            raise
+        except Exception:
+            warnings.warn(
+                "_from_scalars should only raise ValueError or TypeError. "
+                "Consider overriding _from_scalars where appropriate.",
+                stacklevel=find_stack_level(),
+            )
+            raise
+
+        return result
 
     def to_quantity(self) -> Quantity:
         """Convert to native Quantity."""
