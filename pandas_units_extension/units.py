@@ -129,21 +129,24 @@ def convert(q: Quantity, new_unit: Union[str, Unit], equivalencies=None) -> Quan
         raise InvalidUnit(f"Unit '{new_unit}' does not exist.") from None
 
 
-def as_quantity(obj: Any) -> Quantity:
+def as_quantity(obj: Any, copy: bool = True) -> Quantity:
     """Try to convert whatever input to a Quantity."""
     if isinstance(obj, Quantity):
-        return obj
+        return Quantity(obj, copy=copy)
     elif isinstance(obj, UnitsExtensionArray):
-        return Quantity(obj.value, obj.unit)
+        return Quantity(obj.value, obj.unit, copy=copy)
     elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":
         # Note: Timedelta is internally represented as int64
-        return Quantity(np.asarray(obj, dtype=np.int64), "ns").to("s")
+        return Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")
     elif is_list_like(obj):
         obj = list(obj)
+        copy = False  # Already copied by list()
         if len(obj) == 0:
             return Quantity([], "")
         elif all(isinstance(item, str) for item in obj):
             return Quantity([Quantity(item) for item in obj])
+    if copy and hasattr(obj, "copy"):
+        obj = obj.copy()
     return Quantity(obj)
 
 
@@ -153,24 +156,31 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def __init__(
         self, array, unit: Union[None, str, Unit] = None, *, copy: bool = True
     ):
-        if isinstance(array, Quantity):
-            if copy:
-                array = array.copy()
-            self._dtype = UnitsDtype(array.unit)
-            self._value = array.value.astype(float)
-        else:
-            q = as_quantity(array)
-            if q.unit.is_unity():
-                if isinstance(unit, str):
-                    unit = Unit(unit)
-                if unit:
-                    q = q * unit
-            else:
-                if unit and q.unit != unit:
-                    raise ValueError("Dtypes are not equivalent")
+        q: Quantity = as_quantity(array, copy=copy)
 
-            self._dtype = UnitsDtype(q.unit)
-            self._value = q.value.astype(float)
+        # Special handling for boolean arrays. Quantity does support boolean arrays, 
+        # treating `True` as `1` and `False` as `0`, but this is not sensible here 
+        # and can lead to rather unexpected behavior: `u.Quantity(True, u.m) == 1 * u.m` -> `True`.
+        # The only expected path here is from pandas.Series.combine where boolean arrays appear 
+        # after comparison operations. The raised ValueError is caught there and handled properly.
+        if isinstance(q.dtype, np.dtypes.BoolDType):
+            raise ValueError("Boolean array cannot sensible be converted to Quantity and therefore UnitsExtensionArray.")
+
+        if isinstance(unit, str):
+            unit: Unit = Unit(unit)
+
+        if q.unit.is_unity():
+            if unit:
+                q: Quantity = q * unit
+        elif unit and q.unit != unit:
+            # Convert to target unit given by dtype as long as physical types match
+            try:
+                q: Quantity = convert(q, unit)
+            except InvalidUnitConversion as e:
+                raise InvalidUnitConversion("Could not convert units in initialization of UnitsExtensionArray: ") from e
+
+        self._dtype: UnitsDtype = UnitsDtype(q.unit)
+        self._value: np.ndarray[np.float64] = q.value.astype(float)
 
     @property
     def value(self) -> np.ndarray:
@@ -201,11 +211,6 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _from_sequence(cls, scalars, dtype=None, copy=False) -> "UnitsExtensionArray":
         if dtype:
             result = cls(scalars, unit=dtype.unit, copy=copy)
-        elif getattr(scalars, "dtype", None) and scalars.dtype == np.bool:
-            # Note that Quantity does support boolean arrays, treating `True` as `1` and `False` as 0,
-            # but this causes issues with pandas.Series.combine and can lead to rather unexpected
-            # behavior: `u.Quantity(True, u.m) == 1 * u.m` -> `True`, therefore we disallow it here.
-            raise NotImplementedError("Conversion of boolean array to Quantity not allowed.")
         else:
             result = cls(scalars, copy=copy)
         return result
