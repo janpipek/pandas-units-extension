@@ -382,15 +382,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
 class TestRepr:
     def test_repr(self, simple_data):
-        assert (
-            "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
-            == repr(simple_data)
-        )
+        expected: str = "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
+        assert expected== repr(simple_data)
 
     def test_series_repr(self, simple_data):
-        assert "0   1.0 m\n1   2.0 m\n2   3.0 m\ndtype: unit[m]" == repr(
-            pd.Series(simple_data)
-        )
+        expected: str = "0    1.0\n1    2.0\n2    3.0\ndtype: unit[m]"
+        assert expected == repr(pd.Series(simple_data))
 
 
 class TestUnitsSeriesAccessor(BaseOpsUtil):
