@@ -446,14 +446,27 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
 
 
 class TestVarious(BaseExtensionTests):
-    @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
-    def test_concat_incompatible(self):
+    def test_concat_compatible(self):
+        """ Test concatenation of Series with compatible units.
+
+        Both units are of same physical type (length), expected values are converted to first unit, in this case meter.
+        """
         s1 = pd.Series(["1 m"], dtype="unit")
         s2 = pd.Series(["1 ft"], dtype="unit")
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
-        expected = pd.Series(["1 m", "0.3048 m"], dtype="unit")
+        expected = pd.Series([1, 0.3048], dtype="unit[m]")
         tm.assert_series_equal(expected, concatenated)
-        # :-( Returns converted to float.
+
+    def test_concat_incompatible(self):
+        """ Test concatenation of Series with incompatible units.
+
+        Both units are of different physical types (length vs speed), no conversion is done and dtype should be object.
+        """
+        s1 = pd.Series(["1 m"], dtype="unit")
+        s2 = pd.Series(["1 m/s"], dtype="unit")
+        concatenated = pd.concat([s1, s2]).reset_index(drop=True)
+        expected = pd.Series([Quantity("1 m"), Quantity("1 m/s")], dtype=object)
+        tm.assert_series_equal(expected, concatenated)
 
     @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
     def test_add_new_value_with_different_unit(self):

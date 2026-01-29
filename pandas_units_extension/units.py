@@ -24,6 +24,7 @@ from pandas.core import nanops, ops
 from pandas.core.algorithms import take
 from pandas.core.dtypes.generic import ABCIndex, ABCSeries, ABCDataFrame
 from pandas.util._exceptions import find_stack_level
+from pandas._typing import DtypeObj
 
 # Imperial units enabled by default
 imperial.enable()
@@ -108,6 +109,44 @@ class UnitsDtype(ExtensionDtype):
 
     def __repr__(self):
         return f'{self.__class__.__name__}("{self.unit.to_string()}")'
+    
+    def _get_common_dtype(self, dtypes: list[DtypeObj]) -> DtypeObj | None:
+        """
+        Return the common dtype, if one exists.
+
+        Used in `find_common_type` implementation. This is for example used
+        to determine the resulting dtype in a concat operation.
+
+        If no common dtype exists, return None (which gives the other dtypes
+        the chance to determine a common dtype). If all dtypes in the list
+        return None, then the common dtype will be "object" dtype (this means
+        it is never needed to return "object" dtype from this method itself).
+
+        Parameters
+        ----------
+        dtypes : list of dtypes
+            The dtypes for which to determine a common dtype. This is a list
+            of np.dtype or ExtensionDtype instances.
+
+        Returns
+        -------
+        Common dtype (np.dtype or ExtensionDtype) or None
+        """
+        if len(set(dtypes)) == 1:
+            # only itself
+            return self
+
+        # Check that all dtypes are UnitsDtype
+        if not all([isinstance(t, UnitsDtype) for t in dtypes]):
+            return None
+
+        # Check that the units of all UnitsDtype have the same physical type as self and are therefore convertible to self
+        phy_type = self.unit.physical_type
+        if all([t.unit.physical_type == phy_type for t in dtypes]):
+            return self
+
+        # Different physical types, no common dtype
+        return None
 
 
 def convert(q: Quantity, new_unit: Union[str, Unit], equivalencies=None) -> Quantity:
