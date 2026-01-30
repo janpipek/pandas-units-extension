@@ -39,12 +39,12 @@ except:
 
 @pytest.fixture
 def data():
-    return UnitsExtensionArray([1, 2] + 98 * [3], m)
+    return UnitsExtensionArray([1, 2] + 8 * [3], m)
 
 
 @pytest.fixture()
 def data_for_twos():
-    return UnitsExtensionArray([2] * 100, m)
+    return UnitsExtensionArray([2] * 10, m)
 
 
 @pytest.fixture
@@ -256,12 +256,12 @@ class TestReduce(base.BaseReduceTests):
 
     # We include some trusted results on top of pandas' ones
     def test_sum(self, data, data_missing):
-        assert pd.Series(data).sum() == 297 * m
+        assert pd.Series(data).sum() == 27 * m
         assert np.isnan(pd.Series(data_missing).sum(skipna=False))
         assert pd.Series(data_missing).sum() == 1 * m
 
     def test_mean(self, data):
-        assert np.allclose(pd.Series(data).mean() / m, 2.97)
+        assert np.allclose(pd.Series(data).mean() / m, 2.7)
 
     def test_min(self, data):
         assert pd.Series(data).min() == 1 * m
@@ -273,13 +273,13 @@ class TestReduce(base.BaseReduceTests):
         assert pd.Series(data).median() == 3 * m
 
     def test_std(self, data):
-        assert np.allclose(pd.Series(data).std() / m, 0.2227015)
+        assert np.allclose(pd.Series(data).std() / m, 0.6749486)
 
     def test_sem(self, data):
-        assert np.allclose(pd.Series(data).sem() / m, 0.02227015033536137)
+        assert np.allclose(pd.Series(data).sem() / m, 0.21343747458109494)
 
     def test_var(self, data):
-        assert np.allclose(pd.Series(data).var() / (m ** 2), 0.0495959595959596)
+        assert np.allclose(pd.Series(data).var() / (m ** 2), 0.4555555555555555)
 
     def test_unsupported(self, data):
         for method in ["any", "all", "prod"]:
@@ -319,11 +319,11 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     def test_arith_series_with_scalar_pow(self, data):
         s = pd.Series(data)
         result = s ** 2
-        expected = pd.Series([1, 4] + 98 * [9], dtype="unit[m^2]")
+        expected = pd.Series([1, 4] + 8 * [9], dtype="unit[m^2]")
         tm.assert_series_equal(result, expected)
 
         result2 = s ** (-2)
-        expected2 = pd.Series([1, 1 / 4] + 98 * [1 / 9], dtype="unit[m^(-2)]")
+        expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="unit[m^(-2)]")
         tm.assert_series_equal(result2, expected2)
 
     def test_error(self, data, all_arithmetic_operators):
@@ -418,7 +418,6 @@ class TestUnitsSeriesAccessor(BaseOpsUtil):
 
     def test_temperature(self):
         s = pd.Series([0, 100], dtype="unit[deg_C]")
-
         s_f = s.units.to("deg_F")
         s_f_expected = pd.Series([32, 212], dtype="unit[deg_F]")
         tm.assert_series_equal(s_f, s_f_expected)
