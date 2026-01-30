@@ -325,11 +325,16 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         def _as_units_dtype(unit):
             return self.to(unit)
 
-        if isinstance(dtype, UnitsDtype):
+        if dtype == self.dtype:
+            return self.copy() if copy else self
+        elif isinstance(dtype, UnitsDtype):
             return _as_units_dtype(dtype.unit)
         elif dtype == "timedelta64[ns]":
-            nanoseconds = convert(as_quantity(self), "ns")
-            return np.array(nanoseconds.value, dtype="timedelta64[ns]", copy=copy)
+            nanoseconds: Quantity = convert(as_quantity(self, copy=copy), "ns")
+            return np.asarray(nanoseconds.value, dtype="timedelta64[ns]")
+        elif isinstance(dtype, (str, pd.StringDtype)):
+            str_values = [str(q) for q in self.to_quantity()]
+            return pd.Series(str_values, dtype=dtype).array
         elif dtype in ["O", "object", object]:
             return np.array([x * self.unit for x in self.value], dtype=object)
         elif isinstance(dtype, str):
