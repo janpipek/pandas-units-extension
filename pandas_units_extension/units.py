@@ -107,6 +107,10 @@ class UnitsDtype(ExtensionDtype):
     def name(self) -> str:
         return f"{self.BASE_NAME}[{self.unit.to_string()}]"
 
+    @property
+    def na_value(self) -> Quantity:
+        return u.Quantity(np.nan, self.unit)
+
     def __repr__(self):
         return f'{self.__class__.__name__}("{self.unit.to_string()}")'
     
