@@ -22,6 +22,7 @@ from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops, ops
 from pandas.core.algorithms import take
+from pandas.core.arrays import BooleanArray, IntegerArray
 from pandas.core.dtypes.generic import ABCIndex, ABCSeries, ABCDataFrame
 from pandas.util._exceptions import find_stack_level
 from pandas._typing import DtypeObj
@@ -29,7 +30,6 @@ from pandas._typing import DtypeObj
 # Imperial units enabled by default
 imperial.enable()
 
-_PANDAS_V1 = pd.__version__ > "1."
 
 # TODO: Remove once pandas 3.0.0 is released
 if pd.__version__ < "3.0.0":
@@ -360,6 +360,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         result = UnitsExtensionArray.__new__(UnitsExtensionArray)
         result._dtype = self.dtype
         result._value = self.value
+        result._readonly = True
         return result
 
     def _formatter(self, boxed: bool = False):
@@ -370,30 +371,30 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return lambda x: (str(x) if isinstance(x, Quantity) else f"{x} {self.unit}")
 
     def __getitem__(self, item):
-        if isinstance(item, slice):
-            if item == slice(None):  # [:] should return a view
-                return self.view()
-            return self.__class__(self.value[item], unit=self.unit)
-
-        elif np.isscalar(item):
+        if np.isscalar(item):
             return Quantity(self.value[item], unit=self.unit)
+        
+        elif (isinstance(item, slice) and item == slice(None)) or isinstance(item, type(Ellipsis)):
+            # [:] and [...] should return a view
+            return self.view()
 
-        else:
-            if pd.api.types.is_list_like(item):
-                item = pd.array(item)
-                from pandas.core.arrays import IntegerArray
+        elif isinstance(item, tuple):
+            # Only allow slices, scalars and ellipsis in tuple indexing
+            if not all(isinstance(i, (slice, type(Ellipsis))) or np.isscalar(i) for i in item):
+                raise ValueError("Only slices, scalars and ellipsis are allowed in tuple indexing.")
 
-                if _PANDAS_V1:
-                    from pandas.core.arrays import BooleanArray
-                    if isinstance(item, BooleanArray):
-                        if any(item.isna()):
-                            raise ValueError("'Cannot mask with a boolean indexer containing NA values")
-                        item = item.to_numpy(dtype="bool")
-                elif isinstance(item, IntegerArray):
-                    if any(item.isna()):
-                        raise ValueError("Cannot index with an integer indexer containing NA values")
-                    item = item.to_numpy(dtype="int64")
-            return self.__class__(self.value[item], unit=self.unit)
+        elif pd.api.types.is_list_like(item):
+            item = pd.array(item)
+
+            # Treating NA values as False in BooleanArray
+            if isinstance(item, BooleanArray):
+                item: BooleanArray = item.fillna(False)
+
+            # Raise ValueError if there are NA values in a IntegerArray, as these cannot be used for indexing
+            if isinstance(item, IntegerArray) and item.isna().any():
+                raise ValueError("Cannot index with an integer indexer containing NA values")
+
+        return self.__class__(self.value[item], unit=self.unit)
 
     def __setitem__(self, key, value):
         if is_scalar(value) and np.isnan(value):

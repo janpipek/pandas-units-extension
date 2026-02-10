@@ -208,6 +208,17 @@ class TestGroupBy(base.BaseGroupbyTests):
 
 
 class TestGetitem(base.BaseGetitemTests):
+    def test_getitem_mask_raises(self, data):
+        # Overwritten from base class due to different message format for np.array vs pd.array boolean indexing
+        mask = np.array([True, False])
+        msg = f"boolean index did not match indexed array along axis 0; size of axis is {len(data)} but size of corresponding boolean axis is 2"
+        with pytest.raises(IndexError, match=msg):
+            data[mask]
+
+        mask = pd.array(mask, dtype="boolean")
+        with pytest.raises(IndexError, match=msg):
+            data[mask]
+
     def test_unitless(self):
         series = pd.Series([0, 1, 2], dtype="unit[]")
         new_index = [2, 4]
