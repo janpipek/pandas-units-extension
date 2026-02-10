@@ -500,7 +500,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def copy(self, deep=False) -> "UnitsExtensionArray":
         return self.__class__(self.value, self.unit, copy=True)
 
-    def _reduce(self, name, skipna=True, **kwargs):
+    def _reduce(self, name, skipna=True, keepdims=False, **kwargs):
         """Implementation of pandas basic reduce methods."""
         # Borrowed from IntegerArray
 
@@ -519,19 +519,23 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 kwargs = {}
             if skipna:
                 q = q[~np.isnan(q)]
-            return getattr(q, name)(**kwargs)
+            result = getattr(q, name)(**kwargs)
 
         elif name in to_nanops:
             data = self.value
             method = getattr(nanops, "nan" + name)
             result_without_dim = method(data, skipna=skipna)
-            return Quantity(result_without_dim, self.unit)
+            result = Quantity(result_without_dim, self.unit)
 
         elif name in to_error:
             raise TypeError(f"Cannot perform '{name}' with type '{self.dtype}'")
 
         elif name in to_implement_yet:
             raise NotImplementedError
+
+        if keepdims:
+            return self._from_scalars([result], dtype=self.dtype)
+        return result
 
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         """Generate values for factorization"""
