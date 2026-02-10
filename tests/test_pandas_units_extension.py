@@ -248,6 +248,13 @@ class TestReduce(base.BaseReduceTests):
         # List all supported numeric reductions
         return op_name in {"sum", "max", "min", "mean", "std", "var", "median"}
 
+    def _get_expected_reduction_dtype(self, arr, op_name: str, skipna: bool):
+        # Besides `var` all reductions retain the same unit so same dtype.
+        # However `var` returns a squared unit and the new expected dtype is calculated and returned
+        if op_name in {"var"}:
+            return UnitsDtype(arr.unit**2)
+        return arr.dtype
+
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
         # We must check float values
         result = getattr(ser, op_name)(skipna=skipna).value
