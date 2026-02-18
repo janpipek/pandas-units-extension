@@ -360,7 +360,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         result = UnitsExtensionArray.__new__(UnitsExtensionArray)
         result._dtype = self.dtype
         result._value = self.value
-        result._readonly = True
+        result._readonly = self._readonly
         return result
 
     def _formatter(self, boxed: bool = False):
@@ -383,7 +383,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             if not all(isinstance(i, (slice, type(Ellipsis))) or np.isscalar(i) for i in item):
                 raise ValueError("Only slices, scalars and ellipsis are allowed in tuple indexing.")
 
-        elif pd.api.types.is_list_like(item):
+        elif is_list_like(item):
             item = pd.array(item)
 
             # Treating NA values as False in BooleanArray
@@ -397,13 +397,34 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self.__class__(self.value[item], unit=self.unit)
 
     def __setitem__(self, key, value):
+        if self._readonly:
+            raise ValueError("Cannot modify read-only array")
         if is_scalar(value) and np.isnan(value):
-            q = Quantity(value, self.unit)
+            value = Quantity(value, self.unit)
         elif is_list_like(value) and len(value) == 0:
             return
-        else:
-            q = as_quantity(value)
-        q = convert(q, self.unit)
+        elif is_list_like(key):
+            # Handle 2D indexing with a single element in the tuple, e.g. indexer like `(array([0, 1]),)`
+            # Should be the same as `array([0, 1])`, so unwrapping because pd.array only accepts 1D array-likes
+            if isinstance(key, tuple) and len(key) == 1 and is_list_like(key[0]):
+                key = key[0]
+
+            # Convert to pandas array
+            key = pd.array(key)
+
+            # Treating NA values as False in BooleanArray
+            if isinstance(key, BooleanArray):
+                key: BooleanArray = key.fillna(False)
+
+            # Raise ValueError if there are NA values in a IntegerArray, as these cannot be used for indexing
+            if isinstance(key, IntegerArray) and key.isna().any():
+                raise ValueError("Cannot index with an integer indexer containing NA values")
+
+        # Convert value to quantity and convert to same unit as self if necessary
+        q: Quantity = as_quantity(value)
+        q: Quantity = convert(q, self.unit)
+
+        # Set the values at the given key to the numerical values of the quantity
         self.value[key] = q.value
 
     def take(self, indices, allow_fill=False, fill_value=None) -> "UnitsExtensionArray":
