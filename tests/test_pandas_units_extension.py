@@ -306,8 +306,22 @@ class TestReduce(base.BaseReduceTests):
 
 
 class TestSetitem(base.BaseSetitemTests):
-    # TODO: Report bug?
-    test_setitem_mask_broadcast = None
+    def test_setitem_mask_raises(self, data, box_in_series):
+        # Overwritten from base class due to different message format for np.array vs pd.array boolean indexing
+        # wrong length
+        mask = np.array([True, False])
+
+        if box_in_series:
+            data = pd.Series(data)
+            msg: str = "wrong length"
+        else:
+            msg: str = f"boolean index did not match indexed array along axis 0; size of axis is {len(data)} but size of corresponding boolean axis is 2"
+        with pytest.raises(IndexError, match=msg):
+            data[mask] = data[0]
+
+        mask = pd.array(mask, dtype="boolean")
+        with pytest.raises(IndexError, match=msg):
+            data[mask] = data[0]
 
 
 class TestParsing(base.BaseParsingTests):
