@@ -38,8 +38,8 @@ SETUP_OPTIONS = dict(
     long_description=read_description(),
     long_description_content_type="text/markdown",
     url=INFO["__url__"],
-    install_requires=["pandas>=0.25.3, <1.0", "astropy~=4.0"],
-    python_requires=">=3.6",
+    install_requires=["pandas>=3.0.1", "astropy"],
+    python_requires=">=3.11",
 )
 
 if __name__ == "__main__":

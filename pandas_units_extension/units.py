@@ -34,30 +34,6 @@ from pandas._typing import DtypeObj
 imperial.enable()
 
 
-# TODO: Remove once pandas 3.0.0 is released
-if pd.__version__ < "3.0.0":
-    # Monkey Patch for pandas versions < 3.0.0 where item_from_zerodim is not yet fixed
-    # See issue: https://github.com/pandas-dev/pandas/issues/62981
-    # See commit: https://github.com/pandas-dev/pandas/commit/736702a4d7eccbf859810fd3549a9f173c44a3fa
-    from .pandas_patch.pandas_patch import item_from_zerodim_new
-    
-    # Overwrite in pandas modules
-    import pandas.core.ops.common as common
-    common.item_from_zerodim = item_from_zerodim_new
-    import pandas._libs.lib as lib
-    lib.item_from_zerodim = item_from_zerodim_new
-
-# TODO: Remove once pandas 3.1.0 is released
-if pd.__version__ < "3.1.0":
-    # Monkey Patch for pandas version < 3.1.0 where comparison_op is not yet fixed
-    # See issue: https://github.com/pandas-dev/pandas/issues/63205
-    # See pull request: https://github.com/pandas-dev/pandas/pull/63659
-    from .new_comparison_op import comparison_op_new
-    pd.core.ops.comparison_op = comparison_op_new
-    pd.core.ops.array_ops.comparison_op = comparison_op_new
-    pd.core.indexes.base.ops.comparison_op = comparison_op_new
-    pd.core.series.ops.comparison_op = comparison_op_new
-
 class InvalidUnitConversion(ValueError):
     """The unit cannot be converted to another one."""
 
