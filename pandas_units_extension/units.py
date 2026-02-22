@@ -22,8 +22,11 @@ from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops, ops
 from pandas.core.algorithms import take
-from pandas.core.arrays import BooleanArray, IntegerArray
 from pandas.core.dtypes.generic import ABCIndex, ABCSeries, ABCDataFrame
+from pandas.core.indexers import (
+    check_array_indexer,
+    getitem_returns_view,
+)
 from pandas.util._exceptions import find_stack_level
 from pandas._typing import DtypeObj
 
@@ -198,6 +201,28 @@ def as_quantity(obj: Any, copy: bool = True) -> Quantity:
 class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     """Pandas extension array supporting physical quantities with units."""
 
+    # Adapted from MaskedArray to create new objects of UnitsExtensionArray for views and slices
+    @classmethod
+    def _simple_new(cls, values: np.ndarray, dtype: UnitsDtype) -> "UnitsExtensionArray":
+        """Create a new UnitsExtensionArray from the given values and dtype.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            The numerical values (without unit).
+        dtype : UnitsDtype
+            The dtype of the new array, which contains the unit information.
+
+        Returns
+        -------
+        UnitsExtensionArray
+            A new UnitsExtensionArray with the given values and dtype.
+        """
+        result = UnitsExtensionArray.__new__(cls)
+        result._dtype = dtype
+        result._value = values
+        return result
+
     def __init__(
         self, array, unit: Union[None, str, Unit] = None, *, copy: bool = True
     ):
@@ -371,54 +396,37 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return lambda x: (str(x) if isinstance(x, Quantity) else f"{x} {self.unit}")
 
     def __getitem__(self, item):
-        if np.isscalar(item):
+        # Return zerodim Quantity object for singular item
+        if is_scalar(item):
             return Quantity(self.value[item], unit=self.unit)
-        
-        elif (isinstance(item, slice) and item == slice(None)) or isinstance(item, type(Ellipsis)):
-            # [:] and [...] should return a view
-            return self.view()
 
-        elif isinstance(item, tuple):
-            # Only allow slices, scalars and ellipsis in tuple indexing
-            if not all(isinstance(i, (slice, type(Ellipsis))) or np.isscalar(i) for i in item):
-                raise ValueError("Only slices, scalars and ellipsis are allowed in tuple indexing.")
+        # Use pandas utility function to check and convert the item to a valid indexer
+        item = check_array_indexer(self, item)
 
-        elif is_list_like(item):
-            item = pd.array(item)
+        # Create new UnitsExtensionArray
+        result: UnitsExtensionArray = self._simple_new(self.value[item], self.dtype)
 
-            # Treating NA values as False in BooleanArray
-            if isinstance(item, BooleanArray):
-                item: BooleanArray = item.fillna(False)
+        # If the result is a view, keep read-only flag
+        if getitem_returns_view(self, item):
+            result._readonly = self._readonly
 
-            # Raise ValueError if there are NA values in a IntegerArray, as these cannot be used for indexing
-            if isinstance(item, IntegerArray) and item.isna().any():
-                raise ValueError("Cannot index with an integer indexer containing NA values")
-
-        return self.__class__(self.value[item], unit=self.unit)
+        return result
 
     def __setitem__(self, key, value):
+        # Return early if value is empty list or None, as this is a no-op for __setitem__
+        if (is_list_like(value) and len(value) == 0) or value is None:
+            return
+
+        # If readonly flag is set array cannot be modified in place, dispatch to pandas to comply with CoW
         if self._readonly:
             raise ValueError("Cannot modify read-only array")
+
+        # Convert NaN to Quantity with correct unit
         if is_scalar(value) and np.isnan(value):
             value = Quantity(value, self.unit)
-        elif is_list_like(value) and len(value) == 0:
-            return
-        elif is_list_like(key):
-            # Handle 2D indexing with a single element in the tuple, e.g. indexer like `(array([0, 1]),)`
-            # Should be the same as `array([0, 1])`, so unwrapping because pd.array only accepts 1D array-likes
-            if isinstance(key, tuple) and len(key) == 1 and is_list_like(key[0]):
-                key = key[0]
 
-            # Convert to pandas array
-            key = pd.array(key)
-
-            # Treating NA values as False in BooleanArray
-            if isinstance(key, BooleanArray):
-                key: BooleanArray = key.fillna(False)
-
-            # Raise ValueError if there are NA values in a IntegerArray, as these cannot be used for indexing
-            if isinstance(key, IntegerArray) and key.isna().any():
-                raise ValueError("Cannot index with an integer indexer containing NA values")
+        # Use pandas utility function to check and convert the item to a valid indexer
+        key = check_array_indexer(self, key)
 
         # Convert value to quantity and convert to same unit as self if necessary
         q: Quantity = as_quantity(value)
