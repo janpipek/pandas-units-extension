@@ -247,7 +247,23 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def __array__(self, dtype=object, copy=None) -> np.ndarray:
         """Implicit conversion to numpy array."""
-        return self.value.astype(dtype, copy=copy) if dtype else np.asarray(self.value, copy=copy)
+        # Create array depending on dtype
+        if dtype == object:
+            if copy == False:
+                raise ValueError("Cannot return object array without copy, as each element has to be its own Quantity object.")
+            arr = np.array(list(as_quantity(self)), dtype=object)
+            # Converting self first to a Quantity and then to a ndarray requires a copy, so copy flag will be set to True
+            copy = True
+        elif dtype:
+            arr = self.value.astype(dtype, copy=copy)
+        else:
+            arr = np.asarray(self.value, copy=copy)
+
+        # Set writable flag depending on self._readonly and only when no copy was made
+        if self._readonly and copy is not True:
+            arr.setflags(write=False)
+
+        return arr
 
     @property
     def nbytes(self) -> int:

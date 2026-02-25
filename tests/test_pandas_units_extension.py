@@ -217,14 +217,7 @@ class TestGetitem(base.BaseGetitemTests):
 
 
 class TestInterface(base.BaseInterfaceTests):
-    def test_array_interface(self, data):
-        # There is no such thing as array of Quantities
-        result = np.array(data)
-        assert result[0] == data.value[0]
-
-        result = np.array(data.value, dtype=object)
-        expected = np.array(list(data.value), dtype=object)
-        np.testing.assert_array_equal(result, expected)
+    pass
 
 
 class TestMethods(base.BaseMethodsTests):
@@ -295,7 +288,9 @@ class TestReduce(base.BaseReduceTests):
 
 
 class TestSetitem(base.BaseSetitemTests):
-    pass
+    @pytest.mark.xfail(reason="The `to_numpy` function used in this test wrongfully assumes a view and therefore sets the writable flag to false.")
+    def test_readonly_propagates_to_numpy_array_method(self, data):
+        super().test_readonly_propagates_to_numpy_array_method(data)
 
 class TestParsing(base.BaseParsingTests):
     @pytest.mark.parametrize("generic", [False, True])
@@ -388,10 +383,10 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 class TestRepr:
     def test_repr(self, simple_data):
         expected: str = "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
-        assert expected== repr(simple_data)
+        assert expected == repr(simple_data)
 
     def test_series_repr(self, simple_data):
-        expected: str = "0    1.0\n1    2.0\n2    3.0\ndtype: unit[m]"
+        expected: str = "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: unit[m]"
         assert expected == repr(pd.Series(simple_data))
 
 
