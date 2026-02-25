@@ -265,6 +265,26 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return arr
 
+    def __contains__(self, item: object) -> bool | np.bool_:
+        """
+        Return for `item in self`.
+        """
+        # Check if item is a Quantity object, if not it cannot be in the UnitsExtensionArray
+        if not isinstance(item, Quantity):
+            return False
+        
+        # Check if item is na_value by checking if the item is scalar through the ndim parameter and nan
+        if item.ndim == 0 and np.isnan(item):
+            # Check that the physical type of the unit of the nan Quantity is the same as that of UnitsExtensionArray.
+            # Here we are a bit flexible so `np.nan * u.cm` is considered to be the same as `np.nan * u.m` as the value
+            # of the Quantity and therefore the scaling of the unit does not really matter for nan.
+            if item.unit.physical_type == self.unit.physical_type:
+                return np.isnan(self.value).any()
+            return False
+        else:
+            
+            return (item == self).any()  # type: ignore[union-attr]
+
     @property
     def nbytes(self) -> int:
         return self.value.nbytes + sys.getsizeof(self.unit)
