@@ -36,6 +36,12 @@ except:
     def all_compare_operators(request):
         return request.param
 
+@pytest.fixture(params=[True, False])
+def using_nan_is_na(request):
+    opt = request.param
+    with pd.option_context("future.distinguish_nan_and_na", not opt):
+        yield opt
+
 
 @pytest.fixture
 def data():
@@ -217,7 +223,18 @@ class TestGetitem(base.BaseGetitemTests):
 
 
 class TestInterface(base.BaseInterfaceTests):
-    pass
+    def test_contains_unit_aware_na_values(self, data_missing):
+        """Test that various na-values are or are not in data_missing"""
+        # data_missing is of dtype unit[m] so `np.nan * u.m` should be in it
+        assert (np.nan * Unit("m")) in data_missing
+
+        # UnitsExtensionArray is flexible in regards to the unit of a na-value
+        # for __contains__() as long as the physical type is the same (here length),
+        # so `np.nan * u.cm` should also be in data_missing
+        assert (np.nan * Unit("cm")) in data_missing
+
+        # However a different physical type like time for `np.nan * u.s` should not be 
+        assert (np.nan * Unit("s")) not in data_missing
 
 
 class TestMethods(base.BaseMethodsTests):
