@@ -2,7 +2,7 @@ import builtins
 import operator
 import re
 import sys
-from typing import Any, Union
+from typing import Any, Literal, Union, TYPE_CHECKING
 import warnings
 
 import numpy as np
@@ -28,7 +28,13 @@ from pandas.core.indexers import (
     getitem_returns_view,
 )
 from pandas.util._exceptions import find_stack_level
-from pandas._typing import DtypeObj
+if TYPE_CHECKING:
+    from pandas._typing import (
+        DtypeObj,
+        NumpySorter,
+        NumpyValueArrayLike,
+        npt,
+    )
 
 # Imperial units enabled by default
 imperial.enable()
@@ -351,6 +357,19 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def unique(self) -> "UnitsExtensionArray":
         """Unique values."""
         return self.__class__(pd.unique(self.value), unit=self.unit)
+
+    def searchsorted(
+        self,
+        value: NumpyValueArrayLike | Quantity | UnitsExtensionArray,
+        side: Literal["left", "right"] = "left",
+        sorter: NumpySorter | None = None,
+    ) -> npt.NDArray[np.intp] | np.intp:
+        # Convert self and the value to a Quantity
+        self_q: Quantity = as_quantity(self)
+        value_q: Quantity = as_quantity(value)
+
+        # Use the Quantity.searchsorted function
+        return self_q.searchsorted(value_q, side=side, sorter=sorter)
 
     def to(
         self, new_unit: Union[str, Unit], equivalencies=None

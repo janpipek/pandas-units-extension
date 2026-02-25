@@ -238,8 +238,28 @@ class TestInterface(base.BaseInterfaceTests):
 
 
 class TestMethods(base.BaseMethodsTests):
-    # TODO: strange results
-    test_searchsorted = None
+    def test_searchsorted_unit_aware(self, data_for_sorting, as_series):
+        """Test searchsorted for """
+        arr: UnitsExtensionArray = UnitsExtensionArray([1, 2, 3], m)
+
+        if as_series:
+            arr = pd.Series(arr)
+
+        # Check that simple 1 m equivalent is same position as first element,
+        # therefore 0 for left and 1 for right side
+        a = Quantity(1, "m")
+        assert arr.searchsorted(a) == 0
+        assert arr.searchsorted(a, side="right") == 1
+
+        # Check that 200 cm is equivalent to 2 m in searchsorted
+        b = Quantity(200, "cm")
+        assert arr.searchsorted(b) == 1
+        assert arr.searchsorted(b, side="right") == 2
+
+        # Check that 0.003 km is equivalent to 3 m in searchsorted
+        c = Quantity(0.003, "km")
+        assert arr.searchsorted(c) == 2
+        assert arr.searchsorted(c, side="right") == 3
 
 
 class TestReshaping(base.BaseReshapingTests):
