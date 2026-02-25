@@ -221,19 +221,12 @@ class TestInterface(base.BaseInterfaceTests):
 
 
 class TestMethods(base.BaseMethodsTests):
-    # TODO: Report bug, boolean to UnitsExtensionArray requested
-    test_combine_le = None
-
     # TODO: strange results
     test_searchsorted = None
 
 
 class TestReshaping(base.BaseReshapingTests):
-    # TODO: Implement this correctly?
-    test_concat_mixed_dtypes = None
-
-    # TODO: np.nan * u.m in the result not expected in the test
-    test_unstack = None
+    pass
 
 
 class TestReduce(base.BaseReduceTests):
@@ -464,13 +457,11 @@ class TestVarious(BaseExtensionTests):
         expected = pd.Series([Quantity("1 m"), Quantity("1 m/s")], dtype=object)
         tm.assert_series_equal(expected, concatenated)
 
-    @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
     def test_add_new_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
         s1.at[1] = Quantity("1 ft")
         expected = pd.Series(["1.0 m", "0.3048 m"], dtype="unit")
         tm.assert_series_equal(expected, s1)
-        # :-( Returns converted to float.
 
     def test_set_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
