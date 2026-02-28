@@ -19,6 +19,7 @@ Examples
 __all__ = [
     "as_quantity",
     "convert",
+    "Quantity",
     "UnitsDtype",
     "UnitsExtensionArray",
     "UnitsSeriesAccessor",
@@ -29,9 +30,9 @@ __all__ = [
     "__author__",
     "__author_email__",
 ]
+from astropy.units import Quantity, Unit
 
 from .units import (
-    Unit,
     UnitsDataFrameAccessor,
     UnitsDtype,
     UnitsExtensionArray,
