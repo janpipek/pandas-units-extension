@@ -435,6 +435,13 @@ class TestUnitsSeriesAccessor(BaseOpsUtil):
         expected = pd.Series([1000, 2000, 3000], dtype="unit[mm]")
         tm.assert_series_equal(result, expected)
 
+    def test_to_quantity(self, simple_data):
+        s = pd.Series(simple_data)
+        result = s.units.to_quantity()
+        expected = u.Quantity([1, 2, 3], u.m)
+        assert isinstance(result, u.Quantity)
+        assert (result == expected).all()
+
     def test_unit(self, simple_data):
         s = pd.Series(simple_data)
         assert s.units.unit == u.m
