@@ -721,6 +721,16 @@ class UnitsSeriesAccessor:
         new_array: UnitsExtensionArray = self.obj.array.to(unit, equivalencies)
         return self._wrap(new_array)
 
+    def to_quantity(self) -> u.Quantity:
+        """Convert series to native Quantity.
+
+        Returns
+        -------
+        Quantity
+            The converted series.
+        """
+        return self.obj.array.to_quantity()
+
     def to_si(self) -> pd.Series:
         """Convert series to a relevant SI unit."""
         unit: u.Unit = self.obj.array.unit
