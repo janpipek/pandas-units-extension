@@ -9,7 +9,6 @@ import warnings
 import numpy as np
 import pandas as pd
 import astropy.units as u
-from astropy.units.format.generic import Generic
 from pandas.api.extensions import (
     ExtensionArray,
     ExtensionDtype,
@@ -733,11 +732,9 @@ class UnitsSeriesAccessor:
 
     def to_si(self) -> pd.Series:
         """Convert series to a relevant SI unit."""
-        unit: u.Unit = self.obj.array.unit
-        formatter = Generic()
-        formatter._show_scale = False
-        new_unit = u.Unit(formatter.to_string(unit.si.bases[0]))
-        return self.to(new_unit)
+        q: u.Quantity = self.to_quantity()
+        new_array: UnitsExtensionArray = UnitsExtensionArray(q.si)
+        return self._wrap(new_array)
 
 
 @register_dataframe_accessor("units")

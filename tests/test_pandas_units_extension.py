@@ -452,6 +452,12 @@ class TestUnitsSeriesAccessor(BaseOpsUtil):
         expected = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         tm.assert_series_equal(result, expected)
 
+    def test_to_si_composite_unit(self):
+        s = pd.Series([1, 2, 3], dtype="unit[km/h]")
+        result = s.units.to_si()
+        expected = pd.Series([1000 / 3600, 2000 / 3600, 3000 / 3600], dtype="unit[m/s]")
+        tm.assert_series_equal(result, expected)
+
     def test_temperature(self):
         s = pd.Series([0, 100], dtype="unit[deg_C]")
         s_f = s.units.to("deg_F")
