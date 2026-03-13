@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pandas-units-extension"
+version = "0.1.0"
+description = "Extension pandas dtype and array for physical units."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Jan Pipek", email = "jan.pipek@gmail.com" }
+    # TODO: Add Julian here
+]
+requires-python = ">=3.11"
+dependencies = ["pandas>=3.0", "astropy>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/janpipek/pandas-units-extension"
