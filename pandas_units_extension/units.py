@@ -3,7 +3,7 @@ from __future__ import annotations
 import operator
 import re
 import sys
-from typing import Any, Callable, Literal, TYPE_CHECKING
+from typing import Any, Callable, Literal, TypeAlias, TYPE_CHECKING
 import warnings
 
 import numpy as np
@@ -35,6 +35,8 @@ if TYPE_CHECKING:
         NumpyValueArrayLike,
         npt,
     )
+# In absence of a proper UnitBase class that also includes function units we define our own here
+UnitInstance: TypeAlias = u.UnitBase | u.FunctionUnitBase | None
 
 # Imperial units enabled by default
 u.imperial.enable()
@@ -64,11 +66,13 @@ class UnitsDtype(ExtensionDtype):
     _is_numeric: bool = False
     _metadata: tuple[str] = ("unit",)
 
+    unit: UnitInstance
+
     def __init__(self, unit: ut.UnitLike | None = None) -> None:
-        if isinstance(unit, (u.UnitBase, type(None))):
-            self.unit: u.Unit = unit
+        if isinstance(unit, (UnitInstance, type(None))):
+            self.unit = unit
         else:
-            self.unit: u.Unit = u.Unit(unit)
+            self.unit = u.Unit(unit)
 
     @classmethod
     def construct_from_string(cls, string: str) -> UnitsDtype:
@@ -256,7 +260,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             raise ValueError("Boolean array cannot sensible be converted to Quantity and therefore UnitsExtensionArray.")
 
         if isinstance(unit, str):
-            unit: u.Unit = u.Unit(unit)
+            unit: UnitInstance = u.Unit(unit)
 
         if q.unit.is_unity():
             if unit:
@@ -277,7 +281,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self._value
 
     @property
-    def unit(self) -> u.Unit:
+    def unit(self) -> UnitInstance:
         """The unit itself."""
         return self.dtype.unit
 
@@ -366,7 +370,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         cls, strings, dtype=None, copy=False
     ) -> UnitsExtensionArray:
         values: list[u.Quantity] = [u.Quantity(s) for s in strings]
-        unit: u.Unit | None = dtype.unit if dtype else None
+        unit: UnitInstance = dtype.unit if dtype else None
         return UnitsExtensionArray(values, unit)
 
     @classmethod
@@ -442,7 +446,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def astype(self, dtype, copy: bool = True):
         """Convert to a different dtype."""
 
-        def _as_units_dtype(unit) -> UnitsExtensionArray:
+        def _as_units_dtype(unit: UnitInstance) -> UnitsExtensionArray:
             return self.to(unit)
 
         if dtype == self.dtype:
@@ -690,7 +694,7 @@ class UnitsSeriesAccessor:
         self.obj: pd.Series[UnitsExtensionArray] = obj
 
     @property
-    def unit(self) -> u.Unit:
+    def unit(self) -> UnitInstance:
         """The Series' unit."""
         return self.obj.array.unit
 
