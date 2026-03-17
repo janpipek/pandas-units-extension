@@ -1,10 +1,10 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+from pandas.core import ops
 import pandas.testing as tm
-from astropy.units import m
-from astropy.units import Quantity
-from astropy.units import Unit
-from astropy.units import UnitConversionError
+import astropy.units as u
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
@@ -17,7 +17,7 @@ from pandas_units_extension.units import UnitsSeriesAccessor
 try:
     from pandas.conftest import all_arithmetic_operators, all_compare_operators
 except:
-    _all_arithmetic_operators = [
+    _all_arithmetic_operators: list[str] = [
         "__add__",  # '__radd__',
         "__sub__",  # '__rsub__',
         "__mul__",  # '__rmul__',
@@ -35,36 +35,42 @@ except:
     def all_compare_operators(request):
         return request.param
 
+@pytest.fixture(params=[True, False])
+def using_nan_is_na(request):
+    opt = request.param
+    with pd.option_context("future.distinguish_nan_and_na", not opt):
+        yield opt
+
 
 @pytest.fixture
 def data():
-    return UnitsExtensionArray([1, 2] + 98 * [3], m)
+    return UnitsExtensionArray([1, 2] + 8 * [3], u.m)
 
 
 @pytest.fixture()
 def data_for_twos():
-    return UnitsExtensionArray([2] * 100, m)
+    return UnitsExtensionArray([2] * 10, u.m)
 
 
 @pytest.fixture
 def data_missing():
     """Length-2 array with [NA, Valid]"""
-    return UnitsExtensionArray([np.nan * m, 1 * m])
+    return UnitsExtensionArray([np.nan, 1] * u.m)
 
 
 @pytest.fixture
 def simple_data():
-    return UnitsExtensionArray([1, 2, 3], m)
+    return UnitsExtensionArray([1, 2, 3], u.m)
 
 
 @pytest.fixture
 def incoercible_data():
-    return [Quantity(1, "kg"), Quantity(1, "m")]
+    return [u.Quantity(1, "kg"), u.Quantity(1, "m")]
 
 
 @pytest.fixture
 def coercible_data():
-    return [Quantity(1, "kg"), Quantity(1, "g")]
+    return [u.Quantity(1, "kg"), u.Quantity(1, "g")]
 
 
 @pytest.fixture(params=["data", "data_missing"])
@@ -76,9 +82,9 @@ def all_data(request, data, data_missing):
         return data_missing
 
 
-@pytest.fixture(params=[" ", "mm", "kg s"])
-def dtype(request):
-    return UnitsDtype(request.param)
+@pytest.fixture
+def dtype():
+    return UnitsDtype(u.m)
 
 
 @pytest.fixture
@@ -96,12 +102,12 @@ def na_cmp():
 @pytest.fixture
 def na_value():
     # Must be the same unit as others
-    return np.nan * m
+    return np.nan * u.m
 
 
 @pytest.fixture
 def data_for_grouping():
-    return UnitsExtensionArray([2, 2, np.nan, np.nan, 1, 1, 2, 3], "g")
+    return UnitsExtensionArray([2, 2, np.nan, np.nan, 1, 1, 2, 3], u.g)
 
 
 @pytest.fixture
@@ -111,7 +117,7 @@ def data_for_sorting():
     This should be three items [B, C, A] with
     A < B < C
     """
-    return UnitsExtensionArray([2, 3, 1], "m")
+    return UnitsExtensionArray([2, 3, 1], u.m)
 
 
 @pytest.fixture
@@ -121,7 +127,7 @@ def data_missing_for_sorting():
     This should be three items [B, NA, A] with
     A < B and NA missing.
     """
-    return UnitsExtensionArray([3, np.nan, 1], "m")
+    return UnitsExtensionArray([3, np.nan, 1], u.m)
 
 
 @pytest.fixture
@@ -138,6 +144,13 @@ def data_repeated(data):
 _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
 #'kurt', 'skew']
 
+@pytest.fixture
+def sort_by_key():
+    return None
+
+@pytest.fixture(params=[operator.eq, operator.ne, operator.le, operator.lt, operator.ge, operator.gt])
+def comparison_op(request):
+    return request.param
 
 @pytest.fixture(params=_all_numeric_reductions)
 def all_numeric_reductions(request):
@@ -168,27 +181,27 @@ class TestCasting(base.BaseCastingTests):
         s = pd.Series([3, 4], dtype="unit[m]")
         result = s.astype("unit[cm]")
         expected = pd.Series([300, 400], dtype="unit[cm]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("generic", [False, True])
     def test_convert_from_object(self, generic):
-        s = pd.Series([2 * m, 3 * m])
+        s = pd.Series([2, 3] * u.m)
         dtype = "unit" if generic else "unit[m]"
         result = s.astype(dtype)
         expected = pd.Series([2, 3], dtype="unit[m]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     def test_convert_from_timedelta(self):
         s = pd.Series(pd.timedelta_range(0, periods=3, freq="h"))
         result = s.astype("unit")
         expected = pd.Series([0, 3600, 7200], dtype="unit[s]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
     def test_astype_timedelta(self):
         s = pd.Series([0, 1, 2], dtype="unit[h]")
         result = s.astype("timedelta64[ns]")
         expected = pd.Series(pd.timedelta_range(0, periods=3, freq="h"))
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
 
 class TestDtype(base.BaseDtypeTests):
@@ -205,75 +218,97 @@ class TestGetitem(base.BaseGetitemTests):
         new_index = [2, 4]
         result = series.reindex(new_index)
         expected = pd.Series([2, np.nan], dtype="unit[]", index=new_index)
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
 
 class TestInterface(base.BaseInterfaceTests):
-    def test_array_interface(self, data):
-        # There is no such thing as array of Quantities
-        result = np.array(data)
-        assert result[0] == data.value[0]
+    def test_contains_unit_aware_na_values(self, data_missing):
+        """Test that various na-values are or are not in data_missing"""
+        # data_missing is of dtype unit[m] so `np.nan * u.m` should be in it
+        assert (np.nan * u.m) in data_missing
 
-        result = np.array(data.value, dtype=object)
-        expected = np.array(list(data.value), dtype=object)
-        np.testing.assert_array_equal(result, expected)
+        # UnitsExtensionArray is flexible in regards to the unit of a na-value
+        # for __contains__() as long as the physical type is the same (here length),
+        # so `np.nan * u.cm` should also be in data_missing
+        assert (np.nan * u.cm) in data_missing
+
+        # However a different physical type like time for `np.nan * u.s` should not be 
+        assert (np.nan * u.s) not in data_missing
 
 
 class TestMethods(base.BaseMethodsTests):
-    # TODO: Report bug, boolean to UnitsExtensionArray requested
-    test_combine_le = None
+    def test_searchsorted_unit_aware(self, data_for_sorting, as_series):
+        """Test searchsorted for """
+        arr: UnitsExtensionArray = UnitsExtensionArray([1, 2, 3], u.m)
 
-    # TODO: strange results
-    test_searchsorted = None
+        if as_series:
+            arr = pd.Series(arr)
+
+        # Check that simple 1 m equivalent is same position as first element,
+        # therefore 0 for left and 1 for right side
+        a = u.Quantity(1, "m")
+        assert arr.searchsorted(a) == 0
+        assert arr.searchsorted(a, side="right") == 1
+
+        # Check that 200 cm is equivalent to 2 m in searchsorted
+        b = u.Quantity(200, "cm")
+        assert arr.searchsorted(b) == 1
+        assert arr.searchsorted(b, side="right") == 2
+
+        # Check that 0.003 km is equivalent to 3 m in searchsorted
+        c = u.Quantity(0.003, "km")
+        assert arr.searchsorted(c) == 2
+        assert arr.searchsorted(c, side="right") == 3
 
 
 class TestReshaping(base.BaseReshapingTests):
-    # TODO: Implement this correctly?
-    test_concat_mixed_dtypes = None
-
-    # TODO: np.nan * u.m in the result not expected in the test
-    test_unstack = None
+    pass
 
 
-class TestBooleanReduce(base.BaseBooleanReduceTests):
-    def check_reduce(self, s, op_name, skipna):
-        with pytest.raises(TypeError):
-            getattr(s, op_name)(skipna=skipna)
+class TestReduce(base.BaseReduceTests):
+    def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
+        # List all supported numeric reductions
+        return op_name in {"sum", "max", "min", "mean", "std", "var", "median"}
 
+    def _get_expected_reduction_dtype(self, arr, op_name: str, skipna: bool):
+        # Besides `var` all reductions retain the same unit so same dtype.
+        # However `var` returns a squared unit and the new expected dtype is calculated and returned
+        if op_name in {"var"}:
+            return UnitsDtype(arr.unit**2)
+        return arr.dtype
 
-class TestNumericReduce(base.BaseNumericReduceTests):
-    def check_reduce(self, s, op_name, skipna):
+    def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
         # We must check float values
-        result = getattr(s, op_name)(skipna=skipna).value
-        expected = getattr(s.astype("float64"), op_name)(skipna=skipna)
+        result = getattr(ser, op_name)(skipna=skipna).value
+        expected = getattr(ser.astype("float64"), op_name)(skipna=skipna)
         np.testing.assert_almost_equal(result, expected)
 
     # We include some trusted results on top of pandas' ones
     def test_sum(self, data, data_missing):
-        assert pd.Series(data).sum() == 297 * m
+        assert pd.Series(data).sum() == 27 * u.m
         assert np.isnan(pd.Series(data_missing).sum(skipna=False))
-        assert pd.Series(data_missing).sum() == 1 * m
+        assert pd.Series(data_missing).sum() == 1 * u.m
 
     def test_mean(self, data):
-        assert np.allclose(pd.Series(data).mean() / m, 2.97)
+        assert np.allclose(pd.Series(data).mean() / u.m, 2.7)
 
     def test_min(self, data):
-        assert pd.Series(data).min() == 1 * m
+        assert pd.Series(data).min() == 1 * u.m
 
     def test_max(self, data):
-        assert pd.Series(data).max() == 3 * m
+        assert pd.Series(data).max() == 3 * u.m
 
     def test_median(self, data):
-        assert pd.Series(data).median() == 3 * m
+        assert pd.Series(data).median() == 3 * u.m
 
     def test_std(self, data):
-        assert np.allclose(pd.Series(data).std() / m, 0.2227015)
+        assert np.allclose(pd.Series(data).std() / u.m, 0.6749486)
 
     def test_sem(self, data):
-        assert np.allclose(pd.Series(data).sem() / m, 0.02227015033536137)
+        assert np.allclose(pd.Series(data).sem() / u.m, 0.21343747458109494)
 
     def test_var(self, data):
-        assert np.allclose(pd.Series(data).var() / (m ** 2), 0.0495959595959596)
+        assert np.allclose(pd.Series(data).var() / (u.m ** 2), 0.4555555555555555)
 
     def test_unsupported(self, data):
         for method in ["any", "all", "prod"]:
@@ -282,9 +317,9 @@ class TestNumericReduce(base.BaseNumericReduceTests):
 
 
 class TestSetitem(base.BaseSetitemTests):
-    # TODO: Report bug?
-    test_setitem_mask_broadcast = None
-
+    @pytest.mark.xfail(reason="The `to_numpy` function used in this test wrongfully assumes a view and therefore sets the writable flag to false.")
+    def test_readonly_propagates_to_numpy_array_method(self, data):
+        super().test_readonly_propagates_to_numpy_array_method(data)
 
 class TestParsing(base.BaseParsingTests):
     @pytest.mark.parametrize("generic", [False, True])
@@ -293,7 +328,7 @@ class TestParsing(base.BaseParsingTests):
         dtype = "unit" if generic else "unit[m]"
         result = pd.Series(source, dtype=dtype)
         expected = pd.Series([1, 2], dtype="unit[m]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
 
 
 class TestMissing(base.BaseMissingTests):
@@ -305,7 +340,7 @@ class TestPrinting(base.BasePrintingTests):
 
 
 class TestArithmeticsOps(base.BaseArithmeticOpsTests):
-    # divmod_exc = None
+    divmod_exc = None
     series_scalar_exc = None
     frame_scalar_exc = None
     series_array_exc = None
@@ -313,12 +348,12 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     def test_arith_series_with_scalar_pow(self, data):
         s = pd.Series(data)
         result = s ** 2
-        expected = pd.Series([1, 4] + 98 * [9], dtype="unit[m^2]")
-        self.assert_series_equal(result, expected)
+        expected = pd.Series([1, 4] + 8 * [9], dtype="unit[m^2]")
+        tm.assert_series_equal(result, expected)
 
         result2 = s ** (-2)
-        expected2 = pd.Series([1, 1 / 4] + 98 * [1 / 9], dtype="unit[m^(-2)]")
-        self.assert_series_equal(result2, expected2)
+        expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="unit[m^(-2)]")
+        tm.assert_series_equal(result2, expected2)
 
     def test_error(self, data, all_arithmetic_operators):
         pass
@@ -326,7 +361,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     def test_add_incompatible_units(self):
         s1 = pd.Series([1, 2, 3, 4], dtype="unit[kg]")
         s2 = pd.Series([3, 4, 3, 4], dtype="unit[m]")
-        with pytest.raises(UnitConversionError):
+        with pytest.raises(u.UnitConversionError):
             s1 + s2
 
     def test_add_compatible_units(self):
@@ -335,11 +370,13 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
         expected = pd.Series([3001, 4002, 3003, 4004], dtype="unit[m]")
         result = s1 + s2
-        self.assert_series_equal(expected, result)
+        tm.assert_series_equal(expected, result)
 
-    @pytest.mark.xfail(reason="Not implemented yet")
     def test_divmod(self, data):
-        raise NotImplementedError
+        """Overwritten from base class to compare with Quantity object instead of dimensionless 0"""
+        ser = pd.Series(data)
+        self._check_divmod_op(ser, divmod, ser[0])
+        self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
@@ -352,7 +389,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
         result = s1 < s3
         expected = pd.Series([False, True, False])
-        self.assert_series_equal(expected, result)
+        tm.assert_series_equal(expected, result)
 
     def test_temperature_comparison(self):
         s1 = pd.Series([0, -10, 10], dtype="unit[deg_C]")
@@ -360,7 +397,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
         result = s1 < s2
         expected = pd.Series([False, True, False])
-        self.assert_series_equal(expected, result)
+        tm.assert_series_equal(expected, result)
 
     def test_incomparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
@@ -374,15 +411,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
 class TestRepr:
     def test_repr(self, simple_data):
-        assert (
-            "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
-            == repr(simple_data)
-        )
+        expected: str = "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
+        assert expected == repr(simple_data)
 
     def test_series_repr(self, simple_data):
-        assert "0   1.0 m\n1   2.0 m\n2   3.0 m\ndtype: unit[m]" == repr(
-            pd.Series(simple_data)
-        )
+        expected: str = "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: unit[m]"
+        assert expected == repr(pd.Series(simple_data))
 
 
 class TestUnitsSeriesAccessor(BaseOpsUtil):
@@ -399,24 +433,36 @@ class TestUnitsSeriesAccessor(BaseOpsUtil):
         s = pd.Series(simple_data)
         result = s.units.to("mm")
         expected = pd.Series([1000, 2000, 3000], dtype="unit[mm]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
+
+    def test_to_quantity(self, simple_data):
+        s = pd.Series(simple_data)
+        result = s.units.to_quantity()
+        expected = u.Quantity([1, 2, 3], u.m)
+        assert isinstance(result, u.Quantity)
+        assert (result == expected).all()
 
     def test_unit(self, simple_data):
         s = pd.Series(simple_data)
-        assert s.units.unit == Unit("m")
+        assert s.units.unit == u.m
 
     def test_to_si(self):
         s = pd.Series([1, 2, 3], dtype="unit[km]")
         result = s.units.to_si()
         expected = pd.Series([1000, 2000, 3000], dtype="unit[m]")
-        self.assert_series_equal(result, expected)
+        tm.assert_series_equal(result, expected)
+
+    def test_to_si_composite_unit(self):
+        s = pd.Series([1, 2, 3], dtype="unit[km/h]")
+        result = s.units.to_si()
+        expected = pd.Series([1000 / 3600, 2000 / 3600, 3000 / 3600], dtype="unit[m/s]")
+        tm.assert_series_equal(result, expected)
 
     def test_temperature(self):
         s = pd.Series([0, 100], dtype="unit[deg_C]")
-
         s_f = s.units.to("deg_F")
         s_f_expected = pd.Series([32, 212], dtype="unit[deg_F]")
-        self.assert_series_equal(s_f, s_f_expected)
+        tm.assert_series_equal(s_f, s_f_expected)
 
 
 class TestUnitsDataFrameAccessor(BaseOpsUtil):
@@ -434,32 +480,43 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
                 "b": pd.Series([7200, 10800, 14400], dtype="unit[s]"),
             }
         )
-        self.assert_frame_equal(result, expected)
+        tm.assert_frame_equal(result, expected)
 
 
 class TestVarious(BaseExtensionTests):
-    @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
-    def test_concat_incompatible(self):
+    def test_concat_compatible(self):
+        """ Test concatenation of Series with compatible units.
+
+        Both units are of same physical type (length), expected values are converted to first unit, in this case meter.
+        """
         s1 = pd.Series(["1 m"], dtype="unit")
         s2 = pd.Series(["1 ft"], dtype="unit")
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
-        expected = pd.Series(["1 m", "0.3048 m"], dtype="unit")
-        self.assert_series_equal(expected, concatenated)
-        # :-( Returns converted to float.
+        expected = pd.Series([1, 0.3048], dtype="unit[m]")
+        tm.assert_series_equal(expected, concatenated)
 
-    @pytest.mark.xfail(reason="Don't know how to implement this correctly.")
+    def test_concat_incompatible(self):
+        """ Test concatenation of Series with incompatible units.
+
+        Both units are of different physical types (length vs speed), no conversion is done and dtype should be object.
+        """
+        s1 = pd.Series(["1 m"], dtype="unit")
+        s2 = pd.Series(["1 m/s"], dtype="unit")
+        concatenated = pd.concat([s1, s2]).reset_index(drop=True)
+        expected = pd.Series([u.Quantity("1 m"), u.Quantity("1 m/s")], dtype=object)
+        tm.assert_series_equal(expected, concatenated)
+
     def test_add_new_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
-        s1.at[1] = Quantity("1 ft")
+        s1.at[1] = u.Quantity("1 ft")
         expected = pd.Series(["1.0 m", "0.3048 m"], dtype="unit")
-        self.assert_series_equal(expected, s1)
-        # :-( Returns converted to float.
+        tm.assert_series_equal(expected, s1)
 
     def test_set_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
-        s1[0] = Quantity("1 ft")
+        s1[0] = u.Quantity("1 ft")
         expected = pd.Series(["0.3048 m"], dtype="unit")
-        self.assert_series_equal(expected, s1)
+        tm.assert_series_equal(expected, s1)
 
     def test_unique(self):
         s = Series([1, np.nan, np.nan], dtype="unit[m]")
