@@ -18,7 +18,14 @@ Homepage = "https://github.com/janpipek/pandas-units-extension"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.mypy]
+[[tool.mypy.overrides]]
+module = ["astropy", "astropy.*"]
+ignore_missing_imports = true
+
 [dependency-groups]
 dev = [
+    "mypy>=1.19.1",
+    "pandas-stubs>=3.0.0.260204",
     "pytest>=9.0.2",
 ]
