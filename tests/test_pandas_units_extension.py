@@ -1,39 +1,51 @@
+# ruff: disable[F401,F811]
 from __future__ import annotations
 
+import operator
+
+import astropy.units as u
 import numpy as np
 import pandas as pd
-from pandas.core import ops
 import pandas.testing as tm
-import astropy.units as u
+import pytest
+from pandas import Series
+from pandas.core import ops
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
-from pandas.tests.extension.conftest import *
+from pandas.tests.extension.conftest import (
+    as_array,
+    as_series,
+    invalid_scalar,
+    use_numpy,
+)
 
-from pandas_units_extension.units import UnitsDtype
-from pandas_units_extension.units import UnitsExtensionArray
-from pandas_units_extension.units import UnitsSeriesAccessor
+from pandas_units_extension.units import (
+    UnitsDtype,
+    UnitsExtensionArray,
+    UnitsSeriesAccessor,
+)
 
-try:
-    from pandas.conftest import all_arithmetic_operators, all_compare_operators
-except:
-    _all_arithmetic_operators: list[str] = [
-        "__add__",  # '__radd__',
-        "__sub__",  # '__rsub__',
-        "__mul__",  # '__rmul__',
-        "__floordiv__",  #'__rfloordiv__',
-        "__truediv__",  #'__rtruediv__',
-        # '__pow__', # '__rpow__',
-        "__mod__",  # '__rmod__'
-    ]
+_all_arithmetic_operators: list[str] = [
+    "__add__",  # '__radd__',
+    "__sub__",  # '__rsub__',
+    "__mul__",  # '__rmul__',
+    "__floordiv__",  #'__rfloordiv__',
+    "__truediv__",  #'__rtruediv__',
+    # '__pow__', # '__rpow__',
+    "__mod__",  # '__rmod__'
+]
 
-    @pytest.fixture(params=_all_arithmetic_operators)
-    def all_arithmetic_operators(request):
-        return request.param
 
-    @pytest.fixture(params=["__eq__", "__ne__", "__le__", "__lt__", "__ge__", "__gt__"])
-    def all_compare_operators(request):
-        return request.param
+@pytest.fixture(params=_all_arithmetic_operators)
+def all_arithmetic_operators(request):
+    return request.param
+
+
+@pytest.fixture(params=["__eq__", "__ne__", "__le__", "__lt__", "__ge__", "__gt__"])
+def all_compare_operators(request):
+    return request.param
+
 
 @pytest.fixture(params=[True, False])
 def using_nan_is_na(request):
@@ -144,13 +156,25 @@ def data_repeated(data):
 _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
 #'kurt', 'skew']
 
+
 @pytest.fixture
 def sort_by_key():
     return None
 
-@pytest.fixture(params=[operator.eq, operator.ne, operator.le, operator.lt, operator.ge, operator.gt])
+
+@pytest.fixture(
+    params=[
+        operator.eq,
+        operator.ne,
+        operator.le,
+        operator.lt,
+        operator.ge,
+        operator.gt,
+    ]
+)
 def comparison_op(request):
     return request.param
+
 
 @pytest.fixture(params=_all_numeric_reductions)
 def all_numeric_reductions(request):
@@ -232,13 +256,13 @@ class TestInterface(base.BaseInterfaceTests):
         # so `np.nan * u.cm` should also be in data_missing
         assert (np.nan * u.cm) in data_missing
 
-        # However a different physical type like time for `np.nan * u.s` should not be 
+        # However a different physical type like time for `np.nan * u.s` should not be
         assert (np.nan * u.s) not in data_missing
 
 
 class TestMethods(base.BaseMethodsTests):
     def test_searchsorted_unit_aware(self, data_for_sorting, as_series):
-        """Test searchsorted for """
+        """Test searchsorted for"""
         arr: UnitsExtensionArray = UnitsExtensionArray([1, 2, 3], u.m)
 
         if as_series:
@@ -308,7 +332,7 @@ class TestReduce(base.BaseReduceTests):
         assert np.allclose(pd.Series(data).sem() / u.m, 0.21343747458109494)
 
     def test_var(self, data):
-        assert np.allclose(pd.Series(data).var() / (u.m ** 2), 0.4555555555555555)
+        assert np.allclose(pd.Series(data).var() / (u.m**2), 0.4555555555555555)
 
     def test_unsupported(self, data):
         for method in ["any", "all", "prod"]:
@@ -317,9 +341,12 @@ class TestReduce(base.BaseReduceTests):
 
 
 class TestSetitem(base.BaseSetitemTests):
-    @pytest.mark.xfail(reason="The `to_numpy` function used in this test wrongfully assumes a view and therefore sets the writable flag to false.")
+    @pytest.mark.xfail(
+        reason="The `to_numpy` function used in this test wrongfully assumes a view and therefore sets the writable flag to false."
+    )
     def test_readonly_propagates_to_numpy_array_method(self, data):
         super().test_readonly_propagates_to_numpy_array_method(data)
+
 
 class TestParsing(base.BaseParsingTests):
     @pytest.mark.parametrize("generic", [False, True])
@@ -347,7 +374,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
     def test_arith_series_with_scalar_pow(self, data):
         s = pd.Series(data)
-        result = s ** 2
+        result = s**2
         expected = pd.Series([1, 4] + 8 * [9], dtype="unit[m^2]")
         tm.assert_series_equal(result, expected)
 
@@ -411,7 +438,9 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
 class TestRepr:
     def test_repr(self, simple_data):
-        expected: str = "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
+        expected: str = (
+            "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
+        )
         assert expected == repr(simple_data)
 
     def test_series_repr(self, simple_data):
@@ -485,7 +514,7 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
 
 class TestVarious(BaseExtensionTests):
     def test_concat_compatible(self):
-        """ Test concatenation of Series with compatible units.
+        """Test concatenation of Series with compatible units.
 
         Both units are of same physical type (length), expected values are converted to first unit, in this case meter.
         """
@@ -496,7 +525,7 @@ class TestVarious(BaseExtensionTests):
         tm.assert_series_equal(expected, concatenated)
 
     def test_concat_incompatible(self):
-        """ Test concatenation of Series with incompatible units.
+        """Test concatenation of Series with incompatible units.
 
         Both units are of different physical types (length vs speed), no conversion is done and dtype should be object.
         """
