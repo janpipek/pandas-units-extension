@@ -8,14 +8,16 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
-from pandas import Series
 from pandas.core import ops
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
 from pandas.tests.extension.conftest import (
     as_array,
+    as_frame,
     as_series,
+    fillna_method,
+    groupby_apply_op,
     invalid_scalar,
     use_numpy,
 )
@@ -39,11 +41,6 @@ _all_arithmetic_operators: list[str] = [
 
 @pytest.fixture(params=_all_arithmetic_operators)
 def all_arithmetic_operators(request):
-    return request.param
-
-
-@pytest.fixture(params=["__eq__", "__ne__", "__le__", "__lt__", "__ge__", "__gt__"])
-def all_compare_operators(request):
     return request.param
 
 
@@ -262,7 +259,6 @@ class TestInterface(base.BaseInterfaceTests):
 
 class TestMethods(base.BaseMethodsTests):
     def test_searchsorted_unit_aware(self, data_for_sorting, as_series):
-        """Test searchsorted for"""
         arr: UnitsExtensionArray = UnitsExtensionArray([1, 2, 3], u.m)
 
         if as_series:
@@ -548,7 +544,7 @@ class TestVarious(BaseExtensionTests):
         tm.assert_series_equal(expected, s1)
 
     def test_unique(self):
-        s = Series([1, np.nan, np.nan], dtype="unit[m]")
+        s = pd.Series([1, np.nan, np.nan], dtype="unit[m]")
         unique = s.unique()
         expected = UnitsExtensionArray([1, np.nan], unit="m")
         assert unique.unit == expected.unit

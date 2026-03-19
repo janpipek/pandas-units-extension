@@ -579,18 +579,18 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Get info about the operator
         op_name: str = getattr(op, "__name__", str(op))
         is_comparison: bool = op_name in [
-            "eq",
             "__eq__",
-            "ne",
-            "__ne__",
-            "lt",
-            "__lt__",
-            "gt",
-            "__gt__",
-            "le",
-            "__le__",
-            "ge",
             "__ge__",
+            "__gt__",
+            "__le__",
+            "__lt__",
+            "__ne__",
+            "eq",
+            "ge",
+            "gt",
+            "le",
+            "lt",
+            "ne",
         ]
         is_equality: bool = op_name in ["eq", "ne", "__eq__", "__ne__"]
         is_divmod: bool = op_name in ["divmod", "__divmod__", "rdivmod", "__rdivmod__"]
