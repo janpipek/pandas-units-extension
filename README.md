@@ -10,7 +10,7 @@ Updated to be compatible with modern pandas since 2025 by Julian Harbeck during 
 ## Installation
 
 ```bash
-pip install pandas-units-extensions
+pip install pandas-units-extension
 ```
 
 For development:
