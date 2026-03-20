@@ -183,8 +183,8 @@ def convert(
         else:
             raise InvalidUnitConversion(
                 f"Cannot convert unit '{q.unit}' to '{new_unit}'."
-            ) from None
-    except ValueError as err:
+            )
+    except ValueError:
         raise InvalidUnit(f"Unit '{new_unit}' does not exist.") from None
 
 
@@ -371,7 +371,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self.value.nbytes + sys.getsizeof(self.unit)
 
     @classmethod
-    def _from_sequence(cls, scalars, dtype=None, copy=False) -> UnitsExtensionArray:
+    def _from_sequence(cls, scalars, *, dtype=None, copy=False) -> UnitsExtensionArray:
         if dtype:
             result = cls(scalars, unit=dtype.unit, copy=copy)
         else:
@@ -380,7 +380,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     @classmethod
     def _from_sequence_of_strings(
-        cls, strings, dtype=None, copy=False
+        cls, strings, *, dtype=None, copy=False
     ) -> UnitsExtensionArray:
         values: list[u.Quantity] = [u.Quantity(s) for s in strings]
         unit: UnitInstance = dtype.unit if dtype else None
