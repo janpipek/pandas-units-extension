@@ -229,10 +229,15 @@ def as_quantity(
 class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     """Pandas extension array supporting physical quantities with units based on the astropy.units package."""
 
+    _value: np.ndarray[tuple[Any, ...], np.dtype[np.float64]]
+    _dtype: UnitsDtype
+
     # Adapted from MaskedArray to create new objects of UnitsExtensionArray for views and slices
     @classmethod
     def _simple_new(cls, values: np.ndarray, dtype: UnitsDtype) -> UnitsExtensionArray:
-        """Create a new UnitsExtensionArray from the given values and dtype.
+        """Helper to create a new UnitsExtensionArray from the given values and dtype.
+
+        No checking, not dtype inference.
 
         Parameters
         ----------
@@ -281,8 +286,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                     "Could not convert units in initialization of UnitsExtensionArray: "
                 ) from e
 
-        self._dtype: UnitsDtype = UnitsDtype(q.unit)
-        self._value: np.ndarray[np.float64] = q.value.astype(float)
+        self._dtype = UnitsDtype(q.unit)
+        self._value = q.value.astype(float)
 
     @property
     def value(self) -> np.ndarray:
@@ -490,9 +495,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         if dtype is not None:
             # TODO: Perhaps implement?
             raise NotImplementedError(dtype)
-        result = UnitsExtensionArray.__new__(UnitsExtensionArray)
-        result._dtype = self.dtype
-        result._value = self.value
+
+        result = self._simple_new(
+            self.value,
+            self.dtype,
+        )
         result._readonly = self._readonly
         return result
 
@@ -707,11 +714,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 class UnitsSeriesAccessor:
     """Accessor adding unit functionality to series."""
 
-    def __init__(self, obj: pd.Series[UnitsExtensionArray]) -> None:
+    def __init__(self, obj: pd.Series) -> None:
         # Inspired by fletcher
         if not isinstance(obj.array, UnitsExtensionArray):
             raise AttributeError("Only UnitsExtensionArray has units accessor.")
-        self.obj: pd.Series[UnitsExtensionArray] = obj
+        self.obj: pd.Series = obj
 
     @property
     def unit(self) -> UnitInstance:
