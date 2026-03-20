@@ -133,12 +133,12 @@ class UnitsDtype(ExtensionDtype):
             return self
 
         # Check that all dtypes are UnitsDtype
-        if not all([isinstance(t, UnitsDtype) for t in dtypes]):
+        if not all(isinstance(t, UnitsDtype) for t in dtypes):
             return None
 
         # Check that the units of all UnitsDtype have the same physical type as self and are therefore convertible to self
         phy_type: u.PhysicalType = self.unit.physical_type
-        if all([t.unit.physical_type == phy_type for t in dtypes]):
+        if all(t.unit.physical_type == phy_type for t in dtypes):
             return self
 
         # Different physical types, no common dtype
@@ -678,6 +678,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         elif name in to_implement_yet:
             raise NotImplementedError
+
+        else:
+            raise ValueError(f"Unknown reduction '{name}'")
 
         if keepdims:
             return self._from_scalars([result], dtype=self.dtype)
