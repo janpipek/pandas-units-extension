@@ -3,12 +3,12 @@ from __future__ import annotations
 import operator
 import re
 import sys
-from typing import Any, Callable, Literal, TypeAlias, TYPE_CHECKING
 import warnings
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
+import astropy.units as u
 import numpy as np
 import pandas as pd
-import astropy.units as u
 from pandas.api.extensions import (
     ExtensionArray,
     ExtensionDtype,
@@ -21,12 +21,13 @@ from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops
 from pandas.core.algorithms import take
-from pandas.core.dtypes.generic import ABCIndex, ABCSeries, ABCDataFrame
+from pandas.core.dtypes.generic import ABCDataFrame, ABCIndex, ABCSeries
 from pandas.core.indexers import (
     check_array_indexer,
     getitem_returns_view,
 )
 from pandas.util._exceptions import find_stack_level
+
 if TYPE_CHECKING:
     import astropy.units.typing as ut
     from pandas._typing import (
@@ -64,7 +65,7 @@ class UnitsDtype(ExtensionDtype):
     kind: str = "O"
 
     _is_numeric: bool = False
-    _metadata: tuple[str] = ("unit",)
+    _metadata: tuple[str, ...] = ("unit",)
 
     unit: UnitInstance
 
@@ -82,13 +83,14 @@ class UnitsDtype(ExtensionDtype):
             )
         if string == cls.BASE_NAME:
             return cls()
-        match: re.Match[str] | None = re.match(f"{cls.BASE_NAME}\\[(?P<name>.*)\\]$", string)
+        match: re.Match[str] | None = re.match(
+            f"{cls.BASE_NAME}\\[(?P<name>.*)\\]$", string
+        )
         if not match:
             raise TypeError(f"Cannot construct a 'UnitsDtype' from '{string}'")
         return cls(match["name"])
 
-    @classmethod
-    def construct_array_type(cls) -> type:
+    def construct_array_type(self) -> type[UnitsExtensionArray]:
         """Associated extension array."""
         return UnitsExtensionArray
 
@@ -102,7 +104,7 @@ class UnitsDtype(ExtensionDtype):
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}("{self.unit.to_string()}")'
-    
+
     def _get_common_dtype(self, dtypes: list[DtypeObj]) -> DtypeObj | None:
         """
         Return the common dtype, if one exists.
@@ -130,12 +132,12 @@ class UnitsDtype(ExtensionDtype):
             return self
 
         # Check that all dtypes are UnitsDtype
-        if not all([isinstance(t, UnitsDtype) for t in dtypes]):
+        if not all(isinstance(t, UnitsDtype) for t in dtypes):
             return None
 
         # Check that the units of all UnitsDtype have the same physical type as self and are therefore convertible to self
         phy_type: u.PhysicalType = self.unit.physical_type
-        if all([t.unit.physical_type == phy_type for t in dtypes]):
+        if all(t.unit.physical_type == phy_type for t in dtypes):
             return self
 
         # Different physical types, no common dtype
@@ -143,10 +145,10 @@ class UnitsDtype(ExtensionDtype):
 
 
 def convert(
-        q: u.Quantity,
-        new_unit: ut.UnitLike,
-        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None
-    ) -> u.Quantity:
+    q: u.Quantity,
+    new_unit: ut.UnitLike,
+    equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None,
+) -> u.Quantity:
     """Convert quantity to a new unit.
 
     Parameters
@@ -164,7 +166,7 @@ def convert(
         The converted quantity.
 
     Raises
-    ------    
+    ------
     InvalidUnit:
         When target unit does not exist.
     InvalidUnitConversion:
@@ -180,12 +182,14 @@ def convert(
         else:
             raise InvalidUnitConversion(
                 f"Cannot convert unit '{q.unit}' to '{new_unit}'."
-            ) from None
-    except ValueError as err:
+            )
+    except ValueError:
         raise InvalidUnit(f"Unit '{new_unit}' does not exist.") from None
 
 
-def as_quantity(obj: ut.QuantityLike | UnitsExtensionArray, copy: bool = True) -> u.Quantity:
+def as_quantity(
+    obj: ut.QuantityLike | UnitsExtensionArray, copy: bool = True
+) -> u.Quantity:
     """Try to convert whatever input to a Quantity.
 
     Parameters
@@ -224,10 +228,15 @@ def as_quantity(obj: ut.QuantityLike | UnitsExtensionArray, copy: bool = True) -
 class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     """Pandas extension array supporting physical quantities with units based on the astropy.units package."""
 
+    _value: np.ndarray[tuple[Any, ...], np.dtype[np.float64]]
+    _dtype: UnitsDtype
+
     # Adapted from MaskedArray to create new objects of UnitsExtensionArray for views and slices
     @classmethod
     def _simple_new(cls, values: np.ndarray, dtype: UnitsDtype) -> UnitsExtensionArray:
-        """Create a new UnitsExtensionArray from the given values and dtype.
+        """Helper to create a new UnitsExtensionArray from the given values and dtype.
+
+        No checking, not dtype inference.
 
         Parameters
         ----------
@@ -251,29 +260,33 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     ) -> None:
         q: u.Quantity = as_quantity(array, copy=copy)
 
-        # Special handling for boolean arrays. Quantity does support boolean arrays, 
-        # treating `True` as `1` and `False` as `0`, but this is not sensible here 
+        # Special handling for boolean arrays. Quantity does support boolean arrays,
+        # treating `True` as `1` and `False` as `0`, but this is not sensible here
         # and can lead to rather unexpected behavior: `u.Quantity(True, u.m) == 1 * u.m` -> `True`.
-        # The only expected path here is from pandas.Series.combine where boolean arrays appear 
+        # The only expected path here is from pandas.Series.combine where boolean arrays appear
         # after comparison operations. The raised ValueError is caught there and handled properly.
         if isinstance(q.dtype, np.dtypes.BoolDType):
-            raise ValueError("Boolean array cannot sensible be converted to Quantity and therefore UnitsExtensionArray.")
+            raise ValueError(
+                "Boolean array cannot sensible be converted to Quantity and therefore UnitsExtensionArray."
+            )
 
         if isinstance(unit, str):
             unit: UnitInstance = u.Unit(unit)
 
         if q.unit.is_unity():
             if unit:
-                q: u.Quantity = q * unit
+                q = q * unit
         elif unit and q.unit != unit:
             # Convert to target unit given by dtype as long as physical types match
             try:
-                q: u.Quantity = convert(q, unit)
+                q = convert(q, unit)
             except InvalidUnitConversion as e:
-                raise InvalidUnitConversion("Could not convert units in initialization of UnitsExtensionArray: ") from e
+                raise InvalidUnitConversion(
+                    "Could not convert units in initialization of UnitsExtensionArray: "
+                ) from e
 
-        self._dtype: UnitsDtype = UnitsDtype(q.unit)
-        self._value: np.ndarray[np.float64] = q.value.astype(float)
+        self._dtype = UnitsDtype(q.unit)
+        self._value = q.value.astype(float)
 
     @property
     def value(self) -> np.ndarray:
@@ -292,7 +305,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def __len__(self) -> int:
         return len(self.value)
 
-    def __array__(self, dtype: DtypeObj = object, copy: bool | None = None) -> np.ndarray:
+    def __array__(
+        self, dtype: DtypeObj = object, copy: bool | None = None
+    ) -> np.ndarray:
         """Implicit conversion to numpy array, will set writable flag to False if self is readonly and no copy is made.
 
         Parameters
@@ -311,7 +326,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Create array depending on dtype
         if dtype == object:
             if copy == False:
-                raise ValueError("Cannot return object array without copy, as each element has to be its own Quantity object.")
+                raise ValueError(
+                    "Cannot return object array without copy, as each element has to be its own Quantity object."
+                )
             arr = np.array(list(as_quantity(self)), dtype=object)
             # Converting self first to a Quantity and then to a ndarray requires a copy, so copy flag will be set to True
             copy = True
@@ -342,7 +359,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Check if item is a Quantity object, if not it cannot be in the UnitsExtensionArray
         if not isinstance(item, u.Quantity):
             return False
-        
+
         # Check if item is na_value by checking if the item is scalar through the ndim parameter and nan
         if item.ndim == 0 and np.isnan(item):
             # Check that the physical type of the unit of the nan Quantity is the same as that of UnitsExtensionArray.
@@ -358,7 +375,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self.value.nbytes + sys.getsizeof(self.unit)
 
     @classmethod
-    def _from_sequence(cls, scalars, dtype=None, copy=False) -> UnitsExtensionArray:
+    def _from_sequence(cls, scalars, *, dtype=None, copy=False) -> UnitsExtensionArray:
         if dtype:
             result = cls(scalars, unit=dtype.unit, copy=copy)
         else:
@@ -367,7 +384,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     @classmethod
     def _from_sequence_of_strings(
-        cls, strings, dtype=None, copy=False
+        cls, strings, *, dtype=None, copy=False
     ) -> UnitsExtensionArray:
         values: list[u.Quantity] = [u.Quantity(s) for s in strings]
         unit: UnitInstance = dtype.unit if dtype else None
@@ -436,7 +453,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def to(
         self,
         new_unit: ut.UnitLike,
-        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None
+        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None,
     ) -> UnitsExtensionArray:
         """Convert to another unit (if possible)."""
         q: u.Quantity = self.to_quantity()
@@ -471,15 +488,17 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Fall-back to default variant
         return ExtensionArray.astype(self, dtype, copy=copy)
 
-    def view(self, dtype = None) -> UnitsExtensionArray:
+    def view(self, dtype=None) -> UnitsExtensionArray:
         """Create a new object with same data behind it."""
         # TODO: Useful also for 0.25???
         if dtype is not None:
             # TODO: Perhaps implement?
             raise NotImplementedError(dtype)
-        result = UnitsExtensionArray.__new__(UnitsExtensionArray)
-        result._dtype = self.dtype
-        result._value = self.value
+
+        result = self._simple_new(
+            self.value,
+            self.dtype,
+        )
         result._readonly = self._readonly
         return result
 
@@ -488,7 +507,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         TODO: Not sure if this is the best (differ on boxed?)
         """
-        return lambda x: (str(x) if isinstance(x, u.Quantity) else f"{x} {self.unit}")
+        return lambda x: str(x) if isinstance(x, u.Quantity) else f"{x} {self.unit}"
 
     def __getitem__(self, item) -> u.Quantity | UnitsExtensionArray:
         # Return zerodim Quantity object for singular item
@@ -507,7 +526,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return result
 
-    def __setitem__(self, key, value: ut.QuantityLike | UnitsExtensionArray | None) -> None:
+    def __setitem__(
+        self, key, value: ut.QuantityLike | UnitsExtensionArray | None
+    ) -> None:
         # Return early if value is empty list or None, as this is a no-op for __setitem__
         if (is_list_like(value) and len(value) == 0) or value is None:
             return
@@ -564,16 +585,22 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Get info about the operator
         op_name: str = getattr(op, "__name__", str(op))
         is_comparison: bool = op_name in [
-            "eq", "__eq__",
-            "ne", "__ne__",
-            "lt", "__lt__",
-            "gt", "__gt__",
-            "le", "__le__",
-            "ge", "__ge__",
+            "eq",
+            "__eq__",
+            "ne",
+            "__ne__",
+            "lt",
+            "__lt__",
+            "gt",
+            "__gt__",
+            "le",
+            "__le__",
+            "ge",
+            "__ge__",
         ]
         is_equality: bool = op_name in ["eq", "ne", "__eq__", "__ne__"]
         is_divmod: bool = op_name in ["divmod", "__divmod__", "rdivmod", "__rdivmod__"]
-        
+
         def _invalid_operator():
             if is_equality:
                 return NotImplemented
@@ -624,12 +651,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self.__class__(self.value, self.unit, copy=True)
 
     def _reduce(
-            self,
-            name: str,
-            skipna: bool = True,
-            keepdims: bool = False,
-            **kwargs
-        ) -> UnitsExtensionArray | u.Quantity:
+        self, name: str, skipna: bool = True, keepdims: bool = False, **kwargs
+    ) -> UnitsExtensionArray | u.Quantity:
         """Implementation of pandas basic reduce methods."""
         # Borrowed from IntegerArray
 
@@ -662,6 +685,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         elif name in to_implement_yet:
             raise NotImplementedError
 
+        else:
+            raise ValueError(f"Unknown reduction '{name}'")
+
         if keepdims:
             return self._from_scalars([result], dtype=self.dtype)
         return result
@@ -687,11 +713,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 class UnitsSeriesAccessor:
     """Accessor adding unit functionality to series."""
 
-    def __init__(self, obj: pd.Series[UnitsExtensionArray]) -> None:
+    def __init__(self, obj: pd.Series) -> None:
         # Inspired by fletcher
         if not isinstance(obj.array, UnitsExtensionArray):
             raise AttributeError("Only UnitsExtensionArray has units accessor.")
-        self.obj: pd.Series[UnitsExtensionArray] = obj
+        self.obj: pd.Series = obj
 
     @property
     def unit(self) -> UnitInstance:
@@ -705,7 +731,7 @@ class UnitsSeriesAccessor:
     def to(
         self,
         unit: ut.UnitLike,
-        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None
+        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None,
     ) -> pd.Series:
         """Convert series to another unit.
 
