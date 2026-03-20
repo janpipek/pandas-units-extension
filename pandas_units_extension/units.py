@@ -90,8 +90,7 @@ class UnitsDtype(ExtensionDtype):
             raise TypeError(f"Cannot construct a 'UnitsDtype' from '{string}'")
         return cls(match["name"])
 
-    @classmethod
-    def construct_array_type(cls) -> type:
+    def construct_array_type(self) -> type[UnitsExtensionArray]:
         """Associated extension array."""
         return UnitsExtensionArray
 
@@ -276,11 +275,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         if q.unit.is_unity():
             if unit:
-                q: u.Quantity = q * unit
+                q = q * unit
         elif unit and q.unit != unit:
             # Convert to target unit given by dtype as long as physical types match
             try:
-                q: u.Quantity = convert(q, unit)
+                q = convert(q, unit)
             except InvalidUnitConversion as e:
                 raise InvalidUnitConversion(
                     "Could not convert units in initialization of UnitsExtensionArray: "
