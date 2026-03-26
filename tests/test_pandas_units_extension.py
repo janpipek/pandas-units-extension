@@ -237,6 +237,12 @@ class TestGroupBy(base.BaseGroupbyTests):
     def test_groupby_agg_extension(self, data_for_grouping):
         return super().test_groupby_agg_extension(data_for_grouping)
 
+    @pytest.mark.xfail(
+        reason="The UnitsDtype is non of the dtypes for which the test expects a successful grouping, therefore no TypeError is raised",
+    )
+    def test_in_numeric_groupby(self, data_for_grouping):
+        return super().test_in_numeric_groupby(data_for_grouping)
+
 
 class TestGetitem(base.BaseGetitemTests):
     def test_unitless(self):
@@ -348,6 +354,12 @@ class TestSetitem(base.BaseSetitemTests):
     def test_readonly_propagates_to_numpy_array_method(self, data):
         super().test_readonly_propagates_to_numpy_array_method(data)
 
+    @pytest.mark.xfail(
+        reason="Index.get_loc() returns a InvalidIndexError instead of the expected KeyError (key not in index for setter) because Quantity is an instance of abc.Iterable"
+    )
+    def test_loc_setitem_with_expansion_preserves_ea_index_dtype(self, data):
+        super().test_loc_setitem_with_expansion_preserves_ea_index_dtype(data)
+
 
 class TestParsing(base.BaseParsingTests):
     @pytest.mark.parametrize("generic", [False, True])
@@ -408,7 +420,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
-    test_compare_scalar_mark_xfail = pytest.mark.xfail(
+    compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
         pd.__version__ < "3.1.0",
         reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
     )
@@ -418,10 +430,10 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         [
             operator.eq,
             operator.ne,
-            pytest.param(operator.le, marks=test_compare_scalar_mark_xfail),
-            pytest.param(operator.lt, marks=test_compare_scalar_mark_xfail),
-            pytest.param(operator.ge, marks=test_compare_scalar_mark_xfail),
-            pytest.param(operator.gt, marks=test_compare_scalar_mark_xfail),
+            pytest.param(operator.le, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.gt, marks=compare_scalar_mark_xfail),
         ],
     )
     def test_compare_scalar(self, data, comparison_op):
