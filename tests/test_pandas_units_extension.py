@@ -230,7 +230,12 @@ class TestDtype(base.BaseDtypeTests):
 
 
 class TestGroupBy(base.BaseGroupbyTests):
-    pass
+    @pytest.mark.xfail(
+        pd.__version__ < "3.1.0",
+        reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
+    )
+    def test_groupby_agg_extension(self, data_for_grouping):
+        return super().test_groupby_agg_extension(data_for_grouping)
 
 
 class TestGetitem(base.BaseGetitemTests):
@@ -403,6 +408,25 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
+    test_compare_scalar_mark_xfail = pytest.mark.xfail(
+        pd.__version__ < "3.1.0",
+        reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
+    )
+
+    @pytest.mark.parametrize(
+        "comparison_op",
+        [
+            operator.eq,
+            operator.ne,
+            pytest.param(operator.le, marks=test_compare_scalar_mark_xfail),
+            pytest.param(operator.lt, marks=test_compare_scalar_mark_xfail),
+            pytest.param(operator.ge, marks=test_compare_scalar_mark_xfail),
+            pytest.param(operator.gt, marks=test_compare_scalar_mark_xfail),
+        ],
+    )
+    def test_compare_scalar(self, data, comparison_op):
+        return super().test_compare_scalar(data, comparison_op)
+
     def test_comparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1, 2, 3], dtype="unit[km]")
@@ -531,6 +555,10 @@ class TestVarious(BaseExtensionTests):
         expected = pd.Series([u.Quantity("1 m"), u.Quantity("1 m/s")], dtype=object)
         tm.assert_series_equal(expected, concatenated)
 
+    @pytest.mark.xfail(
+        pd.__version__ < "3.1.0",
+        reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
+    )
     def test_add_new_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
         s1.at[1] = u.Quantity("1 ft")
