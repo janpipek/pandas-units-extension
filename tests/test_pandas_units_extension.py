@@ -230,7 +230,18 @@ class TestDtype(base.BaseDtypeTests):
 
 
 class TestGroupBy(base.BaseGroupbyTests):
-    pass
+    @pytest.mark.xfail(
+        pd.__version__ < "3.1.0",
+        reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
+    )
+    def test_groupby_agg_extension(self, data_for_grouping):
+        return super().test_groupby_agg_extension(data_for_grouping)
+
+    @pytest.mark.xfail(
+        reason="The UnitsDtype is non of the dtypes for which the test expects a successful grouping, therefore no TypeError is raised",
+    )
+    def test_in_numeric_groupby(self, data_for_grouping):
+        return super().test_in_numeric_groupby(data_for_grouping)
 
 
 class TestGetitem(base.BaseGetitemTests):
@@ -343,6 +354,12 @@ class TestSetitem(base.BaseSetitemTests):
     def test_readonly_propagates_to_numpy_array_method(self, data):
         super().test_readonly_propagates_to_numpy_array_method(data)
 
+    @pytest.mark.xfail(
+        reason="Index.get_loc() returns a InvalidIndexError instead of the expected KeyError (key not in index for setter) because Quantity is an instance of abc.Iterable"
+    )
+    def test_loc_setitem_with_expansion_preserves_ea_index_dtype(self, data):
+        super().test_loc_setitem_with_expansion_preserves_ea_index_dtype(data)
+
 
 class TestParsing(base.BaseParsingTests):
     @pytest.mark.parametrize("generic", [False, True])
@@ -403,6 +420,25 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
+    compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
+        pd.__version__ < "3.1.0",
+        reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
+    )
+
+    @pytest.mark.parametrize(
+        "comparison_op",
+        [
+            operator.eq,
+            operator.ne,
+            pytest.param(operator.le, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.gt, marks=compare_scalar_mark_xfail),
+        ],
+    )
+    def test_compare_scalar(self, data, comparison_op):
+        return super().test_compare_scalar(data, comparison_op)
+
     def test_comparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1, 2, 3], dtype="unit[km]")
@@ -531,6 +567,10 @@ class TestVarious(BaseExtensionTests):
         expected = pd.Series([u.Quantity("1 m"), u.Quantity("1 m/s")], dtype=object)
         tm.assert_series_equal(expected, concatenated)
 
+    @pytest.mark.xfail(
+        pd.__version__ < "3.1.0",
+        reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
+    )
     def test_add_new_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
         s1.at[1] = u.Quantity("1 ft")
