@@ -379,6 +379,14 @@ class TestPrinting(base.BasePrintingTests):
     pass
 
 
+class TestQuantile:
+    # Regression test for issue #1
+    def test_returns_correct_unit(self):
+        source = pd.Series([1, 2, 3], dtype="unit[m]")
+        result = source.quantile(0.5)
+        assert result == 2.0 * u.m
+
+
 class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     divmod_exc = None
     series_scalar_exc = None
