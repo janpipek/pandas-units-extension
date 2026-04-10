@@ -520,7 +520,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             pytest.param(1, pd.Series([False, False]), id="number"),
             pytest.param("1 m", pd.Series([True, False]), id="string-as-unit"),
             pytest.param("m", pd.Series([False, False]), id="string"),
-            pytest.param(1 * u.m, pd.Series([True, False]), id="unit"),
+            pytest.param(1 * u.m, pd.Series([True, False]), id="quantity"),
             pytest.param(pd.Series([1, 2]), pd.Series([False, False]), id="series"),
             pytest.param(
                 pd.Series([100, 50], dtype="unit[cm]"),
