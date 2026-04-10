@@ -489,7 +489,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
         with pytest.raises(InvalidUnitConversion):
-            _ = op(s1, s2)
+            op(s1, s2)
 
     @pytest.mark.parametrize(
         "other",
