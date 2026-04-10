@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 import astropy.units as u
 import numpy as np
 import pandas as pd
+from astropy.units import UnitConversionError
 from pandas.api.extensions import (
     ExtensionArray,
     ExtensionDtype,
@@ -573,71 +574,41 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return np.isnan(self.value)
 
     @classmethod
-    def _create_method(cls, op, coerce_to_dtype=True, result_dtype=None):
-        # Overridden from the default variant to by-pass conversion to numpy arrays.
+    def _create_arithmetic_method(cls, op):
+        op_name = f"__{op.__name__}__"
 
-        # Get info about the operator
-        op_name: str = getattr(op, "__name__", str(op))
-        is_comparison: bool = op_name in [
-            "__eq__",
-            "__ge__",
-            "__gt__",
-            "__le__",
-            "__lt__",
-            "__ne__",
-            "eq",
-            "ge",
-            "gt",
-            "le",
-            "lt",
-            "ne",
-        ]
-        is_equality: bool = op_name in ["eq", "ne", "__eq__", "__ne__"]
-        is_divmod: bool = op_name in ["divmod", "__divmod__", "rdivmod", "__rdivmod__"]
-
-        def _invalid_operator():
-            if is_equality:
+        def _binop(self, other):
+            if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
                 return NotImplemented
-            else:
-                raise TypeError
+
+            self_q: u.Quantity = as_quantity(self)
+            try:
+                other_q = as_quantity(other)
+                result_q = op(self_q, other_q)
+            except (TypeError, UnitConversionError):
+                result_q = op(self_q, other)
+
+            if op_name in ["__divmod__", "__rdivmod__"]:
+                return cls(result_q[0]), cls(result_q[1])
+            return cls(result_q)
+
+        return set_function_name(_binop, op_name, cls)
+
+    @classmethod
+    def _create_comparison_method(cls, op):
+        op_name = f"__{op.__name__}__"
 
         def _binop(self, other):
             if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
-            elif is_scalar(other):
-                if is_comparison:
-                    return NotImplemented
-
-            elif is_array_like(other):
-                if not isinstance(other.dtype, UnitsDtype):
-                    if is_comparison:
-                        return _invalid_operator()
-
             # Convert the thing to quantities
             self_q: u.Quantity = as_quantity(self)
             other_q: u.Quantity = as_quantity(other)
-
-            if is_comparison:
-                # Try apply conversion (we need same type for comparisons)
-                if is_array_like(other) and other.dtype != self.dtype:
-                    try:
-                        other_q = convert(other_q, self.unit)
-                    except InvalidUnitConversion:
-                        return _invalid_operator()
-
-            result_q = op(self_q, other_q)
-
-            # Divmod returns tuple of two Quantity objects and they have to be handled separately
-            if is_divmod:
-                if coerce_to_dtype:
-                    return cls(result_q[0]), cls(result_q[1])
-                return result_q[0], result_q[1]
-            else:
-                if coerce_to_dtype:
-                    return cls(result_q)
-                return result_q
+            if other_q.unit != self_q.unit:
+                other_q = convert(other_q, self_q.unit)
+            return op(self_q, other_q)
 
         return set_function_name(_binop, op_name, cls)
 

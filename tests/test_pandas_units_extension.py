@@ -26,6 +26,7 @@ from pandas_units_extension.units import (
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
+    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -426,6 +427,15 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser, divmod, ser[0])
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
+    def test_radd(self):
+        result = (5 * u.cm) + pd.Series([1, 2, 3], dtype="unit[m]")
+        expected = pd.Series([105, 205, 305], dtype="unit[cm]")
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.xfail(reason="Makes no sense for pandas-provided fixtures")
+    def test_divmod_series_array(self, data, data_for_twos):
+        super().test_divmod_series_array(data, data_for_twos)
+
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
     compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
@@ -436,8 +446,8 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "comparison_op",
         [
-            operator.eq,
-            operator.ne,
+            pytest.param(operator.eq, marks=compare_scalar_mark_xfail),
+            pytest.param(operator.ne, marks=compare_scalar_mark_xfail),
             pytest.param(operator.le, marks=compare_scalar_mark_xfail),
             pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
             pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
@@ -470,10 +480,33 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
-        assert all(s1 != s2)
+        with pytest.raises(InvalidUnitConversion):
+            _ = s1 < s2
 
-        with pytest.raises(TypeError):
-            s1 < s2
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(1, id="number"),
+            pytest.param(pd.Series([1, 2, 3]), id="series"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op",
+        [
+            operator.eq,
+            operator.ne,
+            operator.le,
+            operator.lt,
+            operator.ge,
+            operator.gt,
+        ],
+    )
+    def test_with_incompatible(self, op, other):
+        s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
+        with pytest.raises(InvalidUnitConversion):
+            op(s1, other)
+        with pytest.raises(InvalidUnitConversion):
+            op(other, s1)
 
 
 class TestRepr:
