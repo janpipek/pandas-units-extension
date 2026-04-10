@@ -579,6 +579,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         def _binop(self, other):
             if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
+                # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
             self_q: u.Quantity = as_quantity(self)
@@ -678,6 +679,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             normalize, sort, ascending, bins, dropna
         )
 
+UnitsExtensionArray._add_arithmetic_ops()
+UnitsExtensionArray._add_comparison_ops()
+UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_method(operator.pow)
+
 
 @register_series_accessor("units")
 class UnitsSeriesAccessor:
@@ -756,7 +761,4 @@ class UnitsDataFrameAccessor:
         return self.obj.apply(_f)
 
 
-UnitsExtensionArray._add_arithmetic_ops()
-UnitsExtensionArray._add_comparison_ops()
 
-UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_method(operator.pow)

@@ -433,9 +433,9 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         expected = pd.Series([105, 205, 305], dtype="unit[cm]")
         tm.assert_series_equal(result, expected)
 
-    @pytest.mark.xfail(reason="Makes no sense for pandas-provided fixtures")
-    def test_divmod_series_array(self, data, data_for_twos):
-        super().test_divmod_series_array(data, data_for_twos)
+    #@pytest.mark.xfail(reason="Makes no sense for pandas-provided fixtures")
+    #def test_divmod_series_array(self, data, data_for_twos):
+    #    super().test_divmod_series_array(data, data_for_twos)
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
@@ -508,11 +508,11 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         ],
     )
     def test_with_incompatible_non_units(self, op, other):
-        s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
+        s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         with pytest.raises(InvalidUnitConversion):
-            op(s1, other)
+            op(s, other)
         with pytest.raises(InvalidUnitConversion):
-            op(other, s1)
+            op(other, s)
 
     @pytest.mark.parametrize(
         ("other", "result"),
