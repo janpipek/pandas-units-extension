@@ -476,12 +476,23 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         expected = pd.Series([False, True, False])
         tm.assert_series_equal(expected, result)
 
-    def test_incomparable_units(self):
+    @pytest.mark.parametrize(
+        "op",
+        [
+            operator.eq,
+            operator.ne,
+            operator.le,
+            operator.lt,
+            operator.ge,
+            operator.gt,
+        ],
+    )
+    def test_incomparable_units(self, op):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
         with pytest.raises(InvalidUnitConversion):
-            _ = s1 < s2
+            _ = op(s1, s2)
 
     @pytest.mark.parametrize(
         "other",
@@ -501,7 +512,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             operator.gt,
         ],
     )
-    def test_with_incompatible(self, op, other):
+    def test_with_incompatible_non_units(self, op, other):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         with pytest.raises(InvalidUnitConversion):
             op(s1, other)
