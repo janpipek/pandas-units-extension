@@ -605,6 +605,14 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
             # Convert the thing to quantities
             self_q: u.Quantity = as_quantity(self)
+
+            if op_name in ["__eq__", "__ne__"]:
+                try:
+                    other_q: u.Quantity = as_quantity(other)
+                    return op(self_q, other_q)
+                except TypeError:
+                    return op(self_q, other)
+
             other_q: u.Quantity = as_quantity(other)
             if other_q.unit != self_q.unit:
                 other_q = convert(other_q, self_q.unit)
