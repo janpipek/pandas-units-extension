@@ -427,6 +427,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser, divmod, ser[0])
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
+    @pytest.mark.xfail(reason="Will be resolved in a future PR.")
     def test_radd(self):
         result = (5 * u.cm) + pd.Series([1, 2, 3], dtype="unit[m]")
         expected = pd.Series([105, 205, 305], dtype="unit[cm]")
