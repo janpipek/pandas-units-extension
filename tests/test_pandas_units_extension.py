@@ -447,8 +447,6 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "comparison_op",
         [
-            pytest.param(operator.eq, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.ne, marks=compare_scalar_mark_xfail),
             pytest.param(operator.le, marks=compare_scalar_mark_xfail),
             pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
             pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
@@ -480,8 +478,6 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "op",
         [
-            operator.eq,
-            operator.ne,
             operator.le,
             operator.lt,
             operator.ge,
@@ -505,8 +501,6 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "op",
         [
-            operator.eq,
-            operator.ne,
             operator.le,
             operator.lt,
             operator.ge,
@@ -519,6 +513,37 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             op(s1, other)
         with pytest.raises(InvalidUnitConversion):
             op(other, s1)
+
+    @pytest.mark.parametrize(
+        ("other", "result"),
+        [
+            pytest.param(1, pd.Series([False, False]), id="number"),
+            pytest.param("1 m", pd.Series([True, False]), id="string-as-unit"),
+            pytest.param("m", pd.Series([False, False]), id="string"),
+            pytest.param(1 * u.m, pd.Series([True, False]), id="unit"),
+            pytest.param(pd.Series([1, 2]), pd.Series([False, False]), id="series"),
+            pytest.param(
+                pd.Series([100, 200], dtype="unit[cm]"),
+                pd.Series([True, True]),
+                id="series",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op",
+        [
+            operator.eq,
+            operator.ne,
+        ],
+    )
+    def test_eq_ne(self, other, result, op):
+        s = pd.Series([1, 2], dtype="unit[m]")
+        if op == operator.eq:
+            expected = result
+        else:
+            expected = ~result
+        result = op(s, other)
+        tm.assert_series_equal(result, expected)
 
 
 class TestRepr:
