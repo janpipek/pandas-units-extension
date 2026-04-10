@@ -26,6 +26,7 @@ from pandas_units_extension.units import (
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
+    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -426,6 +427,16 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser, divmod, ser[0])
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
+    @pytest.mark.xfail(reason="Will be resolved in a future PR.")
+    def test_radd(self):
+        result = (5 * u.cm) + pd.Series([1, 2, 3], dtype="unit[m]")
+        expected = pd.Series([105, 205, 305], dtype="unit[cm]")
+        tm.assert_series_equal(result, expected)
+
+    #@pytest.mark.xfail(reason="Makes no sense for pandas-provided fixtures")
+    #def test_divmod_series_array(self, data, data_for_twos):
+    #    super().test_divmod_series_array(data, data_for_twos)
+
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
     compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
@@ -436,8 +447,6 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "comparison_op",
         [
-            operator.eq,
-            operator.ne,
             pytest.param(operator.le, marks=compare_scalar_mark_xfail),
             pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
             pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
@@ -466,14 +475,80 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         expected = pd.Series([False, True, False])
         tm.assert_series_equal(expected, result)
 
-    def test_incomparable_units(self):
+    @pytest.mark.parametrize(
+        "op",
+        [
+            operator.le,
+            operator.lt,
+            operator.ge,
+            operator.gt,
+        ],
+    )
+    def test_incomparable_units(self, op):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
-        assert all(s1 != s2)
+        with pytest.raises(InvalidUnitConversion):
+            op(s1, s2)
 
-        with pytest.raises(TypeError):
-            s1 < s2
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(1, id="number"),
+            pytest.param(pd.Series([1, 2, 3]), id="series"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op",
+        [
+            operator.le,
+            operator.lt,
+            operator.ge,
+            operator.gt,
+        ],
+    )
+    def test_with_incompatible_non_units(self, op, other):
+        s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
+        with pytest.raises(InvalidUnitConversion):
+            op(s, other)
+        with pytest.raises(InvalidUnitConversion):
+            op(other, s)
+
+    @pytest.mark.parametrize(
+        ("other", "result"),
+        [
+            pytest.param(1, pd.Series([False, False]), id="number"),
+            pytest.param("1 m", pd.Series([True, False]), id="string-as-unit"),
+            pytest.param("m", pd.Series([False, False]), id="string"),
+            pytest.param(1 * u.m, pd.Series([True, False]), id="quantity"),
+            pytest.param(pd.Series([1, 2]), pd.Series([False, False]), id="series"),
+            pytest.param(
+                pd.Series([100, 50], dtype="unit[cm]"),
+                pd.Series([True, False]),
+                id="series-with-compatible-unit",
+            ),
+            pytest.param(
+                pd.Series([1, 2], dtype="unit[kg]"),
+                pd.Series([False, False]),
+                id="series-with-incompatible-unit",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "op",
+        [
+            operator.eq,
+            operator.ne,
+        ],
+    )
+    def test_eq_ne(self, other, result, op):
+        s = pd.Series([1, 2], dtype="unit[m]")
+        if op == operator.eq:
+            expected = result
+        else:
+            expected = ~result
+        result = op(s, other)
+        tm.assert_series_equal(result, expected)
 
 
 class TestRepr:
