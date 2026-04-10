@@ -523,9 +523,14 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             pytest.param(1 * u.m, pd.Series([True, False]), id="unit"),
             pytest.param(pd.Series([1, 2]), pd.Series([False, False]), id="series"),
             pytest.param(
-                pd.Series([100, 200], dtype="unit[cm]"),
-                pd.Series([True, True]),
-                id="series",
+                pd.Series([100, 50], dtype="unit[cm]"),
+                pd.Series([True, False]),
+                id="series-with-compatible-unit",
+            ),
+            pytest.param(
+                pd.Series([1, 2], dtype="unit[kg]"),
+                pd.Series([False, False]),
+                id="series-with-incompatible-unit",
             ),
         ],
     )
