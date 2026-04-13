@@ -29,13 +29,20 @@ from pandas_units_extension.units import (
 )
 
 _all_arithmetic_operators: list[str] = [
-    "__add__",  # '__radd__',
-    "__sub__",  # '__rsub__',
-    "__mul__",  # '__rmul__',
-    "__floordiv__",  #'__rfloordiv__',
-    "__truediv__",  #'__rtruediv__',
-    # '__pow__', # '__rpow__',
-    "__mod__",  # '__rmod__'
+    "__add__",
+    "__radd__",
+    "__sub__",
+    "__rsub__",
+    "__mul__",
+    "__rmul__",
+    "__floordiv__",
+    "__rfloordiv__",
+    "__truediv__",
+    "__rtruediv__",
+    # '__pow__',
+    # # '__rpow__',
+    "__mod__",
+    "__rmod__",
 ]
 
 
@@ -305,7 +312,7 @@ class TestReduce(base.BaseReduceTests):
         # Besides `var` all reductions retain the same unit so same dtype.
         # However `var` returns a squared unit and the new expected dtype is calculated and returned
         if op_name in {"var"}:
-            return UnitsDtype(arr.unit**2)
+            return UnitsDtype(arr._unit**2)
         return arr.dtype
 
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
@@ -595,5 +602,5 @@ class TestVarious(BaseExtensionTests):
         s = pd.Series([1, np.nan, np.nan], dtype="unit[m]")
         unique = s.unique()
         expected = UnitsExtensionArray([1, np.nan], unit="m")
-        assert unique.unit == expected.unit
-        np.testing.assert_equal(expected.value, unique.value)
+        assert unique._unit == expected._unit
+        np.testing.assert_equal(expected._value, unique._value)
