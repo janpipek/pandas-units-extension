@@ -210,7 +210,7 @@ def as_quantity(
     if isinstance(obj, u.Quantity):
         return u.Quantity(obj, copy=copy)
     elif isinstance(obj, UnitsExtensionArray):
-        return u.Quantity(obj.value, obj.unit, copy=copy)
+        return u.Quantity(obj._value, obj._unit, copy=copy)
     elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":
         # Note: Timedelta is internally represented as int64
         return u.Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")
@@ -285,12 +285,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         self._value: np.ndarray[np.float64] = q.value.astype(float)
 
     @property
-    def value(self) -> np.ndarray:
-        """The numerical values (without unit)."""
-        return self._value
-
-    @property
-    def unit(self) -> UnitInstance:
+    def _unit(self) -> UnitInstance:
         """The unit itself."""
         return self.dtype.unit
 
@@ -299,7 +294,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self._dtype
 
     def __len__(self) -> int:
-        return len(self.value)
+        return len(self._value)
 
     def __array__(
         self, dtype: DtypeObj = object, copy: bool | None = None
@@ -329,9 +324,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             # Converting self first to a Quantity and then to a ndarray requires a copy, so copy flag will be set to True
             copy = True
         elif dtype:
-            arr = self.value.astype(dtype, copy=copy)
+            arr = self._value.astype(dtype, copy=copy)
         else:
-            arr = np.asarray(self.value, copy=copy)
+            arr = np.asarray(self._value, copy=copy)
 
         # Set writable flag depending on self._readonly and only when no copy was made
         if self._readonly and copy is not True:
@@ -361,14 +356,14 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             # Check that the physical type of the unit of the nan Quantity is the same as that of UnitsExtensionArray.
             # Here we are a bit flexible so `np.nan * u.cm` is considered to be the same as `np.nan * u.m` as the value
             # of the Quantity and therefore the scaling of the unit does not really matter for nan.
-            if item.unit.physical_type == self.unit.physical_type:
-                return np.isnan(self.value).any()
+            if item.unit.physical_type == self._unit.physical_type:
+                return np.isnan(self._value).any()
             return False
         return (item == self).any()  # type: ignore[union-attr]
 
     @property
     def nbytes(self) -> int:
-        return self.value.nbytes + sys.getsizeof(self.unit)
+        return self._value.nbytes + sys.getsizeof(self._unit)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=False) -> UnitsExtensionArray:
@@ -431,7 +426,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def unique(self) -> UnitsExtensionArray:
         """Unique values."""
-        return self.__class__(pd.unique(self.value), unit=self.unit)
+        return self.__class__(pd.unique(self._value), unit=self._unit)
 
     def searchsorted(
         self,
@@ -473,7 +468,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             str_values: list[str] = [str(q) for q in self.to_quantity()]
             return pd.Series(str_values, dtype=dtype).array
         elif dtype in ["O", "object", object]:
-            return np.array([x * self.unit for x in self.value], dtype=object)
+            return np.array([x * self._unit for x in self._value], dtype=object)
         elif isinstance(dtype, str):
             try:
                 dtype = UnitsDtype(dtype)
@@ -492,7 +487,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             raise NotImplementedError(dtype)
         result = UnitsExtensionArray.__new__(UnitsExtensionArray)
         result._dtype = self.dtype
-        result._value = self.value
+        result._value = self._value
         result._readonly = self._readonly
         return result
 
@@ -501,18 +496,18 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         TODO: Not sure if this is the best (differ on boxed?)
         """
-        return lambda x: str(x) if isinstance(x, u.Quantity) else f"{x} {self.unit}"
+        return lambda x: str(x) if isinstance(x, u.Quantity) else f"{x} {self._unit}"
 
     def __getitem__(self, item) -> u.Quantity | UnitsExtensionArray:
         # Return zerodim Quantity object for singular item
         if is_scalar(item):
-            return u.Quantity(self.value[item], unit=self.unit)
+            return u.Quantity(self._value[item], unit=self._unit)
 
         # Use pandas utility function to check and convert the item to a valid indexer
         item = check_array_indexer(self, item)
 
         # Create new UnitsExtensionArray
-        result: UnitsExtensionArray = self._simple_new(self.value[item], self.dtype)
+        result: UnitsExtensionArray = self._simple_new(self._value[item], self.dtype)
 
         # If the result is a view, keep read-only flag
         if getitem_returns_view(self, item):
@@ -533,17 +528,17 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         # Convert NaN to Quantity with correct unit
         if is_scalar(value) and np.isnan(value):
-            value = u.Quantity(value, self.unit)
+            value = u.Quantity(value, self._unit)
 
         # Use pandas utility function to check and convert the item to a valid indexer
         key = check_array_indexer(self, key)
 
         # Convert value to quantity and convert to same unit as self if necessary
         q: u.Quantity = as_quantity(value)
-        q: u.Quantity = convert(q, self.unit)
+        q: u.Quantity = convert(q, self._unit)
 
         # Set the values at the given key to the numerical values of the quantity
-        self.value[key] = q.value
+        self._value[key] = q.value
 
     def take(self, indices, allow_fill=False, fill_value=None) -> UnitsExtensionArray:
         """Integer-based selection of items."""
@@ -552,8 +547,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 fill_value = np.nan
             else:
                 fill_value = fill_value.value
-        values = take(self.value, indices, allow_fill=allow_fill, fill_value=fill_value)
-        return UnitsExtensionArray(values, self.unit)
+        values = take(
+            self._value, indices, allow_fill=allow_fill, fill_value=fill_value
+        )
+        return UnitsExtensionArray(values, self._unit)
 
     @classmethod
     def _concat_same_type(cls, to_concat) -> UnitsExtensionArray:
@@ -561,16 +558,16 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return cls([])
         elif len(to_concat) == 1:
             return to_concat[0]
-        elif len(set(item.unit for item in to_concat)) != 1:
+        elif len(set(item._unit for item in to_concat)) != 1:
             # TODO: And this actually never happens.
             raise ValueError("Not all concatenated arrays have the same units.")
         else:
             return cls(
-                np.concatenate([item.value for item in to_concat]), to_concat[0].unit
+                np.concatenate([item._value for item in to_concat]), to_concat[0]._unit
             )
 
     def isna(self):
-        return np.isnan(self.value)
+        return np.isnan(self._value)
 
     @classmethod
     def _create_method(cls, op, coerce_to_dtype=True, result_dtype=None):
@@ -623,7 +620,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 # Try apply conversion (we need same type for comparisons)
                 if is_array_like(other) and other.dtype != self.dtype:
                     try:
-                        other_q = convert(other_q, self.unit)
+                        other_q = convert(other_q, self._unit)
                     except InvalidUnitConversion:
                         return _invalid_operator()
 
@@ -642,7 +639,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return set_function_name(_binop, op_name, cls)
 
     def copy(self, deep=False) -> UnitsExtensionArray:
-        return self.__class__(self.value, self.unit, copy=True)
+        return self.__class__(self._value, self._unit, copy=True)
 
     def _reduce(
         self, name: str, skipna: bool = True, keepdims: bool = False, **kwargs
@@ -668,10 +665,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             result: u.Quantity = getattr(q, name)(**kwargs)
 
         elif name in to_nanops:
-            data = self.value
+            data = self._value
             method = getattr(nanops, "nan" + name)
             result_without_dim = method(data, skipna=skipna)
-            result = u.Quantity(result_without_dim, self.unit)
+            result = u.Quantity(result_without_dim, self._unit)
 
         elif name in to_error:
             raise TypeError(f"Cannot perform '{name}' with type '{self.dtype}'")
@@ -685,7 +682,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         """Generate values for factorization"""
-        return self.value, None
+        return self._value, None
 
     @classmethod
     def _from_factorized(cls, values, original) -> UnitsExtensionArray:
@@ -695,7 +692,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         self, normalize=False, sort=True, ascending=False, bins=None, dropna=True
     ) -> pd.Series:
         # TODO: Is it possible to include units? We'd need custom index
-        return pd.Index(self.value).value_counts(
+        return pd.Index(self._value).value_counts(
             normalize, sort, ascending, bins, dropna
         )
 
@@ -713,7 +710,7 @@ class UnitsSeriesAccessor:
     @property
     def unit(self) -> UnitInstance:
         """The Series' unit."""
-        return self.obj.array.unit
+        return self.obj.array._unit
 
     def _wrap(self, result: UnitsExtensionArray) -> pd.Series:
         """Construct a series with different data but same index and name."""
