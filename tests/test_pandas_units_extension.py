@@ -40,7 +40,7 @@ _all_arithmetic_operators: list[str] = [
     "__truediv__",
     "__rtruediv__",
     # '__pow__',
-    # # '__rpow__',
+    # '__rpow__',
     "__mod__",
     "__rmod__",
 ]
@@ -409,9 +409,6 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         result2 = s ** (-2)
         expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="unit[m^(-2)]")
         tm.assert_series_equal(result2, expected2)
-
-    def test_error(self, data, all_arithmetic_operators):
-        pass
 
     def test_add_incompatible_units(self):
         s1 = pd.Series([1, 2, 3, 4], dtype="unit[kg]")
