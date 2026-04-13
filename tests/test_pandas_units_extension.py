@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
-from pandas.core import ops
+from pandas.core import ops, roperator
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
@@ -429,6 +429,15 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         ser = pd.Series(data)
         self._check_divmod_op(ser, divmod, ser[0])
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
+
+    @pytest.mark.parametrize(
+        "op", [operator.mul, roperator.rmul, operator.truediv, roperator.rtruediv]
+    )
+    def test_mul_div_with_unit(self, data, op):
+        s = pd.Series(data)
+        result: pd.Series = op(s, u.m)
+        expected = pd.Series(op(data.to_quantity(), u.m), dtype="unit")
+        tm.assert_series_equal(result, expected)
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):

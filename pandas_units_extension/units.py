@@ -591,6 +591,16 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         ]
         is_equality: bool = op_name in ["eq", "ne", "__eq__", "__ne__"]
         is_divmod: bool = op_name in ["divmod", "__divmod__", "rdivmod", "__rdivmod__"]
+        is_multiplication: bool = op_name in [
+            "__mul__",
+            "__rmul__",
+            "__truediv__",
+            "__rtruediv__",
+            "mul",
+            "rmul",
+            "truediv",
+            "rtruediv",
+        ]
 
         def _invalid_operator():
             if is_equality:
@@ -611,6 +621,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 if not isinstance(other.dtype, UnitsDtype):
                     if is_comparison:
                         return _invalid_operator()
+
+            # For multiplication and division other can also be a unit
+            if is_multiplication and isinstance(other, UnitInstance):
+                other = u.Quantity(1, other)
 
             # Convert the thing to quantities
             self_q: u.Quantity = as_quantity(self)
