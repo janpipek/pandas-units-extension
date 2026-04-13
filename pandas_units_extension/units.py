@@ -211,6 +211,8 @@ def as_quantity(
         return u.Quantity(obj, copy=copy)
     elif isinstance(obj, UnitsExtensionArray):
         return u.Quantity(obj._value, obj._unit, copy=copy)
+    elif isinstance(obj, ABCSeries) and isinstance(obj.dtype, UnitsDtype):
+        return as_quantity(obj.array, copy=copy)
     elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":
         # Note: Timedelta is internally represented as int64
         return u.Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")

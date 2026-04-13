@@ -26,6 +26,7 @@ from pandas_units_extension.units import (
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
+    as_quantity,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -610,3 +611,45 @@ class TestVarious(BaseExtensionTests):
         expected = UnitsExtensionArray([1, np.nan], unit="m")
         assert unique._unit == expected._unit
         np.testing.assert_equal(expected._value, unique._value)
+
+    @pytest.mark.parametrize(
+        ("obj", "expected"),
+        [
+            pytest.param(1 * u.m, u.Quantity(1, u.m), id="Quantity"),
+            pytest.param(
+                UnitsExtensionArray([1, 2] * u.m),
+                u.Quantity([1, 2], u.m),
+                id="UnitsExtensionArray",
+            ),
+            pytest.param(
+                pd.Series([1, 2], dtype="unit[m]"), u.Quantity([1, 2], u.m), id="Series"
+            ),
+            pytest.param(
+                pd.Series([1e9, 2e9], dtype="timedelta64[ns]"),
+                u.Quantity([1, 2], u.s),
+                id="Timedelta Series",
+            ),
+            pytest.param([], u.Quantity([], ""), id="Empty List"),
+            pytest.param(
+                ["1 m", "2 m"], u.Quantity([1, 2], u.m), id="List of Strings with Units"
+            ),
+            pytest.param(
+                [1 * u.m, 2 * u.m], u.Quantity([1, 2], u.m), id="List of Quantities"
+            ),
+            pytest.param(
+                np.array([1 * u.m, 2 * u.m], dtype=object),
+                u.Quantity([1, 2], u.m),
+                id="Numpy Array of Quantities",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_as_quantity(self, obj, expected, copy):
+        # Convert the obj annd check that the result is as expected
+        result: u.Quantity = as_quantity(obj, copy=copy)
+        np.testing.assert_equal(result, expected)
+
+        # Check that always a copy is made when copy=True
+        # We do not check the other case as a copy cannot always be prevented
+        if copy:
+            assert np.may_share_memory(result, expected) is False
