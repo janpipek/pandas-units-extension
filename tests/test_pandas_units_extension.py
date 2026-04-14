@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
-from pandas.core import ops
+from pandas.core import ops, roperator
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
@@ -26,6 +26,7 @@ from pandas_units_extension.units import (
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
+    as_quantity,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -430,6 +431,15 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser, divmod, ser[0])
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
+    @pytest.mark.parametrize(
+        "op", [operator.mul, roperator.rmul, operator.truediv, roperator.rtruediv]
+    )
+    def test_mul_div_with_unit(self, data, op):
+        s = pd.Series(data)
+        result: pd.Series = op(s, u.m)
+        expected = pd.Series(op(data.to_quantity(), u.m), dtype="unit")
+        tm.assert_series_equal(result, expected)
+
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
     compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
@@ -601,3 +611,45 @@ class TestVarious(BaseExtensionTests):
         expected = UnitsExtensionArray([1, np.nan], unit="m")
         assert unique._unit == expected._unit
         np.testing.assert_equal(expected._value, unique._value)
+
+    @pytest.mark.parametrize(
+        ("obj", "expected"),
+        [
+            pytest.param(1 * u.m, u.Quantity(1, u.m), id="Quantity"),
+            pytest.param(
+                UnitsExtensionArray([1, 2] * u.m),
+                u.Quantity([1, 2], u.m),
+                id="UnitsExtensionArray",
+            ),
+            pytest.param(
+                pd.Series([1, 2], dtype="unit[m]"), u.Quantity([1, 2], u.m), id="Series"
+            ),
+            pytest.param(
+                pd.Series([1e9, 2e9], dtype="timedelta64[ns]"),
+                u.Quantity([1, 2], u.s),
+                id="Timedelta Series",
+            ),
+            pytest.param([], u.Quantity([], ""), id="Empty List"),
+            pytest.param(
+                ["1 m", "2 m"], u.Quantity([1, 2], u.m), id="List of Strings with Units"
+            ),
+            pytest.param(
+                [1 * u.m, 2 * u.m], u.Quantity([1, 2], u.m), id="List of Quantities"
+            ),
+            pytest.param(
+                np.array([1 * u.m, 2 * u.m], dtype=object),
+                u.Quantity([1, 2], u.m),
+                id="Numpy Array of Quantities",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_as_quantity(self, obj, expected, copy):
+        # Convert the obj annd check that the result is as expected
+        result: u.Quantity = as_quantity(obj, copy=copy)
+        np.testing.assert_equal(result, expected)
+
+        # Check that always a copy is made when copy=True
+        # We do not check the other case as a copy cannot always be prevented
+        if copy:
+            assert np.may_share_memory(result, expected) is False
