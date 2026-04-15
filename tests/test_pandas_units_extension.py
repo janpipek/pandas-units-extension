@@ -676,6 +676,8 @@ class TestVarious(BaseExtensionTests):
         expected = UnitsExtensionArray([1, np.nan], unit="m")
         assert unique._unit == expected._unit
         np.testing.assert_equal(expected._value, unique._value)
+        assert unique._unit == expected._unit
+        np.testing.assert_equal(expected._value, unique._value)
 
     @pytest.mark.parametrize(
         ("obj", "expected"),
@@ -710,7 +712,7 @@ class TestVarious(BaseExtensionTests):
     )
     @pytest.mark.parametrize("copy", [True, False])
     def test_as_quantity(self, obj, expected, copy):
-        # Convert the obj annd check that the result is as expected
+        # Convert the obj and check that the result is as expected
         result: u.Quantity = as_quantity(obj, copy=copy)
         np.testing.assert_equal(result, expected)
 
