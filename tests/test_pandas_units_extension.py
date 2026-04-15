@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
-from pandas.core import ops
+from pandas.core import ops, roperator
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
@@ -26,17 +26,25 @@ from pandas_units_extension.units import (
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
+    as_quantity,
     InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
-    "__add__",  # '__radd__',
-    "__sub__",  # '__rsub__',
-    "__mul__",  # '__rmul__',
-    "__floordiv__",  #'__rfloordiv__',
-    "__truediv__",  #'__rtruediv__',
-    # '__pow__', # '__rpow__',
-    "__mod__",  # '__rmod__'
+    "__add__",
+    "__radd__",
+    "__sub__",
+    "__rsub__",
+    "__mul__",
+    "__rmul__",
+    "__floordiv__",
+    "__rfloordiv__",
+    "__truediv__",
+    "__rtruediv__",
+    # '__pow__',
+    # '__rpow__',
+    "__mod__",
+    "__rmod__",
 ]
 
 
@@ -306,7 +314,7 @@ class TestReduce(base.BaseReduceTests):
         # Besides `var` all reductions retain the same unit so same dtype.
         # However `var` returns a squared unit and the new expected dtype is calculated and returned
         if op_name in {"var"}:
-            return UnitsDtype(arr.unit**2)
+            return UnitsDtype(arr._unit**2)
         return arr.dtype
 
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
@@ -404,9 +412,6 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="unit[m^(-2)]")
         tm.assert_series_equal(result2, expected2)
 
-    def test_error(self, data, all_arithmetic_operators):
-        pass
-
     def test_add_incompatible_units(self):
         s1 = pd.Series([1, 2, 3, 4], dtype="unit[kg]")
         s2 = pd.Series([3, 4, 3, 4], dtype="unit[m]")
@@ -427,11 +432,13 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser, divmod, ser[0])
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
-    @pytest.mark.xfail(reason="Will be resolved in a future PR.")
-    def test_radd(self):
-        # TODO: Add tests for other r-ops when fix is finished
-        result = (5 * u.cm) + pd.Series([1, 2, 3], dtype="unit[m]")
-        expected = pd.Series([105, 205, 305], dtype="unit[cm]")
+    @pytest.mark.parametrize(
+        "op", [operator.mul, roperator.rmul, operator.truediv, roperator.rtruediv]
+    )
+    def test_mul_div_with_unit(self, data, op):
+        s = pd.Series(data)
+        result: pd.Series = op(s, u.m)
+        expected = pd.Series(op(data.to_quantity(), u.m), dtype="unit")
         tm.assert_series_equal(result, expected)
 
 
@@ -667,5 +674,47 @@ class TestVarious(BaseExtensionTests):
         s = pd.Series([1, np.nan, np.nan], dtype="unit[m]")
         unique = s.unique()
         expected = UnitsExtensionArray([1, np.nan], unit="m")
-        assert unique.unit == expected.unit
-        np.testing.assert_equal(expected.value, unique.value)
+        assert unique._unit == expected._unit
+        np.testing.assert_equal(expected._value, unique._value)
+
+    @pytest.mark.parametrize(
+        ("obj", "expected"),
+        [
+            pytest.param(1 * u.m, u.Quantity(1, u.m), id="Quantity"),
+            pytest.param(
+                UnitsExtensionArray([1, 2] * u.m),
+                u.Quantity([1, 2], u.m),
+                id="UnitsExtensionArray",
+            ),
+            pytest.param(
+                pd.Series([1, 2], dtype="unit[m]"), u.Quantity([1, 2], u.m), id="Series"
+            ),
+            pytest.param(
+                pd.Series([1e9, 2e9], dtype="timedelta64[ns]"),
+                u.Quantity([1, 2], u.s),
+                id="Timedelta Series",
+            ),
+            pytest.param([], u.Quantity([], ""), id="Empty List"),
+            pytest.param(
+                ["1 m", "2 m"], u.Quantity([1, 2], u.m), id="List of Strings with Units"
+            ),
+            pytest.param(
+                [1 * u.m, 2 * u.m], u.Quantity([1, 2], u.m), id="List of Quantities"
+            ),
+            pytest.param(
+                np.array([1 * u.m, 2 * u.m], dtype=object),
+                u.Quantity([1, 2], u.m),
+                id="Numpy Array of Quantities",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("copy", [True, False])
+    def test_as_quantity(self, obj, expected, copy):
+        # Convert the obj annd check that the result is as expected
+        result: u.Quantity = as_quantity(obj, copy=copy)
+        np.testing.assert_equal(result, expected)
+
+        # Check that always a copy is made when copy=True
+        # We do not check the other case as a copy cannot always be prevented
+        if copy:
+            assert np.may_share_memory(result, expected) is False
