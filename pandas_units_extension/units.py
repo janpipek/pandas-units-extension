@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 import astropy.units as u
 import numpy as np
 import pandas as pd
-from astropy.units import UnitConversionError
 from pandas.api.extensions import (
     ExtensionArray,
     ExtensionDtype,
@@ -592,15 +591,13 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
-            self_q: u.Quantity = as_quantity(self)
-            try:
-                other_q = as_quantity(other)
-                result_q = op(self_q, other_q)
-            except (TypeError, UnitConversionError):
-                result_q = op(self_q, other)
             # For multiplication and division other can also be a unit
             if is_multiplication and isinstance(other, UnitInstance):
                 other = u.Quantity(1, other)
+
+            self_q = as_quantity(self)
+            other_q = as_quantity(other)
+            result_q = op(self_q, other_q)
 
             if is_divmod:
                 # divmod returns a tuple of results
@@ -626,11 +623,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                     other_q: u.Quantity = as_quantity(other)
                     return op(self_q, other_q)
                 except TypeError:
+                    # Compare things that cannot be converted to quantity, using astropy logic
                     return op(self_q, other)
 
             other_q: u.Quantity = as_quantity(other)
             if other_q.unit != self_q.unit:
-                other_q = convert(other_q, self_q._unit)
+                other_q = convert(other_q, self_q.unit)
             return op(self_q, other_q)
 
         return set_function_name(_binop, op_name, cls)
