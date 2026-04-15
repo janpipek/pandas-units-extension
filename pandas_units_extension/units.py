@@ -579,12 +579,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             "__rmul__",
             "__truediv__",
             "__rtruediv__",
-            "mul",
-            "rmul",
-            "truediv",
-            "rtruediv",
         ]
-        is_divmod = op_name in ["__divmod__", "__rdivmod__", "divmod", "rdivmod"]
+        is_divmod = op_name in ["__divmod__", "__rdivmod__"]
 
         def _binop(self, other):
             if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
