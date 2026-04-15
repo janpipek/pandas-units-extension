@@ -617,8 +617,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             if op_name in ["__eq__", "__ne__"]:
                 try:
                     other_q: u.Quantity = as_quantity(other)
+                    if other_q.unit != self_q.unit:
+                        other_q = convert(other_q, self_q.unit)
                     return op(self_q, other_q)
-                except TypeError:
+                except (TypeError, InvalidUnitConversion):
                     # Compare things that cannot be converted to quantity, using astropy logic
                     return op(self_q, other)
 

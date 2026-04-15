@@ -473,12 +473,31 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         expected = pd.Series([False, True, False])
         tm.assert_series_equal(expected, result)
 
-    def test_temperature_comparison(self):
-        s1 = pd.Series([0, -10, 10], dtype="unit[deg_C]")
-        s2 = pd.Series([270, 270, 270], dtype="unit[K]")
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(pd.Series([270, 270, 270], dtype="unit[K]"), id="series"),
+            pytest.param(270 * u.K, id="value"),
+        ],
+    )
+    def test_temperature_inequality(self, other):
+        s = pd.Series([0, -10, 10], dtype="unit[deg_C]")
 
-        result = s1 < s2
+        result = s < other
         expected = pd.Series([False, True, False])
+        tm.assert_series_equal(expected, result)
+
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(pd.Series([273.15, 274, 0], dtype="unit[K]"), id="series"),
+            pytest.param(32 * u.imperial.deg_F, id="value"),
+        ],
+    )
+    def test_temperature_equality(self, other):
+        s = pd.Series([0, -10, 10], dtype="unit[deg_C]")
+        result = s == other
+        expected = pd.Series([True, False, False])
         tm.assert_series_equal(expected, result)
 
     def test_incomparable_units(self, ordering_comparison_op):
