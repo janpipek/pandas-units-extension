@@ -618,6 +618,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 try:
                     other_q: u.Quantity = as_quantity(other)
                     if other_q.unit != self_q.unit:
+                        # This enables comparison of temperature values
                         other_q = convert(other_q, self_q.unit)
                     return op(self_q, other_q)
                 except (TypeError, InvalidUnitConversion):
@@ -626,6 +627,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
             other_q: u.Quantity = as_quantity(other)
             if other_q.unit != self_q.unit:
+                # This enables comparison of temperature values
                 other_q = convert(other_q, self_q.unit)
             return op(self_q, other_q)
 
