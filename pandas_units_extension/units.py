@@ -590,6 +590,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 result_q = op(self_q, other)
 
             if op_name in ["__divmod__", "__rdivmod__"]:
+                # divmod returns a tuple of results
                 return cls(result_q[0]), cls(result_q[1])
             return cls(result_q)
 
@@ -679,6 +680,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             normalize, sort, ascending, bins, dropna
         )
 
+
 UnitsExtensionArray._add_arithmetic_ops()
 UnitsExtensionArray._add_comparison_ops()
 UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_method(operator.pow)
@@ -759,6 +761,3 @@ class UnitsDataFrameAccessor:
                 return col
 
         return self.obj.apply(_f)
-
-
-

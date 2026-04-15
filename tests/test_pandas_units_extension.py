@@ -429,13 +429,10 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
     @pytest.mark.xfail(reason="Will be resolved in a future PR.")
     def test_radd(self):
+        # TODO: Add tests for other r-ops when fix is finished
         result = (5 * u.cm) + pd.Series([1, 2, 3], dtype="unit[m]")
         expected = pd.Series([105, 205, 305], dtype="unit[cm]")
         tm.assert_series_equal(result, expected)
-
-    #@pytest.mark.xfail(reason="Makes no sense for pandas-provided fixtures")
-    #def test_divmod_series_array(self, data, data_for_twos):
-    #    super().test_divmod_series_array(data, data_for_twos)
 
 
 class TestComparisonOps(base.BaseComparisonOpsTests):
