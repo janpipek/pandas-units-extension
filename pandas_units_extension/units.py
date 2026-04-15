@@ -587,9 +587,6 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         ]
         is_divmod = op_name in ["__divmod__", "__rdivmod__", "divmod", "rdivmod"]
 
-        if op_name == "divmod":
-            raise ValueError("Jdi do prdele")
-
         def _binop(self, other):
             if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
                 # rely on pandas to unbox and dispatch to us

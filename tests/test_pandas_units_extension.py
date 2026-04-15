@@ -46,6 +46,30 @@ _all_arithmetic_operators: list[str] = [
     "__mod__",
     "__rmod__",
 ]
+_all_equality_comparison_operators = [operator.eq, operator.ne]
+_all_ordering_comparison_operators = [
+    operator.le,
+    operator.lt,
+    operator.ge,
+    operator.gt,
+]
+
+
+@pytest.fixture(
+    params=_all_equality_comparison_operators + _all_ordering_comparison_operators
+)
+def comparison_op(request):
+    return request.param
+
+
+@pytest.fixture(params=_all_equality_comparison_operators)
+def equality_comparison_op(request):
+    return request.param
+
+
+@pytest.fixture(params=_all_ordering_comparison_operators)
+def ordering_comparison_op(request):
+    return request.param
 
 
 @pytest.fixture(params=_all_arithmetic_operators)
@@ -166,20 +190,6 @@ _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
 @pytest.fixture
 def sort_by_key():
     return None
-
-
-@pytest.fixture(
-    params=[
-        operator.eq,
-        operator.ne,
-        operator.le,
-        operator.lt,
-        operator.ge,
-        operator.gt,
-    ]
-)
-def comparison_op(request):
-    return request.param
 
 
 @pytest.fixture(params=_all_numeric_reductions)
@@ -448,17 +458,9 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
     )
 
-    @pytest.mark.parametrize(
-        "comparison_op",
-        [
-            pytest.param(operator.le, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.gt, marks=compare_scalar_mark_xfail),
-        ],
-    )
-    def test_compare_scalar(self, data, comparison_op):
-        return super().test_compare_scalar(data, comparison_op)
+    @compare_scalar_mark_xfail
+    def test_compare_scalar(self, data, ordering_comparison_op):
+        return super().test_compare_scalar(data, ordering_comparison_op)
 
     def test_comparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
@@ -479,21 +481,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         expected = pd.Series([False, True, False])
         tm.assert_series_equal(expected, result)
 
-    @pytest.mark.parametrize(
-        "op",
-        [
-            operator.le,
-            operator.lt,
-            operator.ge,
-            operator.gt,
-        ],
-    )
-    def test_incomparable_units(self, op):
+    def test_incomparable_units(self, ordering_comparison_op):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
         with pytest.raises(InvalidUnitConversion):
-            op(s1, s2)
+            ordering_comparison_op(s1, s2)
 
     @pytest.mark.parametrize(
         "other",
@@ -502,21 +495,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             pytest.param(pd.Series([1, 2, 3]), id="series"),
         ],
     )
-    @pytest.mark.parametrize(
-        "op",
-        [
-            operator.le,
-            operator.lt,
-            operator.ge,
-            operator.gt,
-        ],
-    )
-    def test_with_incompatible_non_units(self, op, other):
+    def test_with_incompatible_non_units(self, ordering_comparison_op, other):
         s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         with pytest.raises(InvalidUnitConversion):
-            op(s, other)
+            ordering_comparison_op(s, other)
         with pytest.raises(InvalidUnitConversion):
-            op(other, s)
+            ordering_comparison_op(other, s)
 
     @pytest.mark.parametrize(
         ("other", "result"),
@@ -538,20 +522,13 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             ),
         ],
     )
-    @pytest.mark.parametrize(
-        "op",
-        [
-            operator.eq,
-            operator.ne,
-        ],
-    )
-    def test_eq_ne(self, other, result, op):
+    def test_eq_ne(self, other, result, equality_comparison_op):
         s = pd.Series([1, 2], dtype="unit[m]")
-        if op == operator.eq:
+        if equality_comparison_op == operator.eq:
             expected = result
         else:
             expected = ~result
-        result = op(s, other)
+        result = equality_comparison_op(s, other)
         tm.assert_series_equal(result, expected)
 
 
