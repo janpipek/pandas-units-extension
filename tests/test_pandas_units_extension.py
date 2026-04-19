@@ -27,6 +27,7 @@ from pandas_units_extension.units import (
     UnitsExtensionArray,
     UnitsSeriesAccessor,
     as_quantity,
+    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -45,6 +46,30 @@ _all_arithmetic_operators: list[str] = [
     "__mod__",
     "__rmod__",
 ]
+_all_equality_comparison_operators = [operator.eq, operator.ne]
+_all_ordering_comparison_operators = [
+    operator.le,
+    operator.lt,
+    operator.ge,
+    operator.gt,
+]
+
+
+@pytest.fixture(
+    params=_all_equality_comparison_operators + _all_ordering_comparison_operators
+)
+def comparison_op(request):
+    return request.param
+
+
+@pytest.fixture(params=_all_equality_comparison_operators)
+def equality_comparison_op(request):
+    return request.param
+
+
+@pytest.fixture(params=_all_ordering_comparison_operators)
+def ordering_comparison_op(request):
+    return request.param
 
 
 @pytest.fixture(params=_all_arithmetic_operators)
@@ -165,20 +190,6 @@ _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
 @pytest.fixture
 def sort_by_key():
     return None
-
-
-@pytest.fixture(
-    params=[
-        operator.eq,
-        operator.ne,
-        operator.le,
-        operator.lt,
-        operator.ge,
-        operator.gt,
-    ]
-)
-def comparison_op(request):
-    return request.param
 
 
 @pytest.fixture(params=_all_numeric_reductions)
@@ -441,25 +452,25 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         tm.assert_series_equal(result, expected)
 
 
-class TestComparisonOps(base.BaseComparisonOpsTests):
-    compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
-        pd.__version__ < "3.1.0",
-        reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
-    )
+compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
+    pd.__version__ < "3.1.0",
+    reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
+)
 
+
+class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
-        "comparison_op",
+        "op",
         [
-            operator.eq,
-            operator.ne,
-            pytest.param(operator.le, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.lt, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.ge, marks=compare_scalar_mark_xfail),
-            pytest.param(operator.gt, marks=compare_scalar_mark_xfail),
+            *_all_equality_comparison_operators,
+            *[
+                pytest.param(op, marks=compare_scalar_mark_xfail)
+                for op in _all_ordering_comparison_operators
+            ],
         ],
     )
-    def test_compare_scalar(self, data, comparison_op):
-        return super().test_compare_scalar(data, comparison_op)
+    def test_compare_scalar(self, data, op):
+        return super().test_compare_scalar(data, op)
 
     def test_comparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
@@ -472,22 +483,82 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         expected = pd.Series([False, True, False])
         tm.assert_series_equal(expected, result)
 
-    def test_temperature_comparison(self):
-        s1 = pd.Series([0, -10, 10], dtype="unit[deg_C]")
-        s2 = pd.Series([270, 270, 270], dtype="unit[K]")
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(pd.Series([270, 270, 270], dtype="unit[K]"), id="series"),
+            pytest.param(270 * u.K, id="value"),
+        ],
+    )
+    def test_temperature_inequality(self, other):
+        s = pd.Series([0, -10, 10], dtype="unit[deg_C]")
 
-        result = s1 < s2
+        result = s < other
         expected = pd.Series([False, True, False])
         tm.assert_series_equal(expected, result)
 
-    def test_incomparable_units(self):
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(pd.Series([273.15, 274, 0], dtype="unit[K]"), id="series"),
+            pytest.param(32 * u.imperial.deg_F, id="value"),
+        ],
+    )
+    def test_temperature_equality(self, other):
+        s = pd.Series([0, -10, 10], dtype="unit[deg_C]")
+        result = s == other
+        expected = pd.Series([True, False, False])
+        tm.assert_series_equal(expected, result)
+
+    def test_incomparable_units(self, ordering_comparison_op):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
-        assert all(s1 != s2)
+        with pytest.raises(InvalidUnitConversion):
+            ordering_comparison_op(s1, s2)
 
-        with pytest.raises(TypeError):
-            s1 < s2
+    @pytest.mark.parametrize(
+        "other",
+        [
+            pytest.param(1, id="number"),
+            pytest.param(pd.Series([1, 2, 3]), id="series"),
+        ],
+    )
+    def test_with_incompatible_non_units(self, ordering_comparison_op, other):
+        s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
+        with pytest.raises(InvalidUnitConversion):
+            ordering_comparison_op(s, other)
+        with pytest.raises(InvalidUnitConversion):
+            ordering_comparison_op(other, s)
+
+    @pytest.mark.parametrize(
+        ("other", "result"),
+        [
+            pytest.param(1, pd.Series([False, False]), id="number"),
+            pytest.param("1 m", pd.Series([True, False]), id="string-as-unit"),
+            pytest.param("m", pd.Series([False, False]), id="string"),
+            pytest.param(1 * u.m, pd.Series([True, False]), id="quantity"),
+            pytest.param(pd.Series([1, 2]), pd.Series([False, False]), id="series"),
+            pytest.param(
+                pd.Series([100, 50], dtype="unit[cm]"),
+                pd.Series([True, False]),
+                id="series-with-compatible-unit",
+            ),
+            pytest.param(
+                pd.Series([1, 2], dtype="unit[kg]"),
+                pd.Series([False, False]),
+                id="series-with-incompatible-unit",
+            ),
+        ],
+    )
+    def test_eq_ne(self, other, result, equality_comparison_op):
+        s = pd.Series([1, 2], dtype="unit[m]")
+        if equality_comparison_op == operator.eq:
+            expected = result
+        else:
+            expected = ~result
+        result = equality_comparison_op(s, other)
+        tm.assert_series_equal(result, expected)
 
 
 class TestRepr:
@@ -645,7 +716,7 @@ class TestVarious(BaseExtensionTests):
     )
     @pytest.mark.parametrize("copy", [True, False])
     def test_as_quantity(self, obj, expected, copy):
-        # Convert the obj annd check that the result is as expected
+        # Convert the obj and check that the result is as expected
         result: u.Quantity = as_quantity(obj, copy=copy)
         np.testing.assert_equal(result, expected)
 

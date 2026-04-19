@@ -572,85 +572,64 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return np.isnan(self._value)
 
     @classmethod
-    def _create_method(cls, op, coerce_to_dtype=True, result_dtype=None):
-        # Overridden from the default variant to by-pass conversion to numpy arrays.
-
-        # Get info about the operator
-        op_name: str = getattr(op, "__name__", str(op))
-        is_comparison: bool = op_name in [
-            "__eq__",
-            "__ge__",
-            "__gt__",
-            "__le__",
-            "__lt__",
-            "__ne__",
-            "eq",
-            "ge",
-            "gt",
-            "le",
-            "lt",
-            "ne",
-        ]
-        is_equality: bool = op_name in ["eq", "ne", "__eq__", "__ne__"]
-        is_divmod: bool = op_name in ["divmod", "__divmod__", "rdivmod", "__rdivmod__"]
+    def _create_arithmetic_method(cls, op):
+        op_name = f"__{op.__name__}__"
         is_multiplication: bool = op_name in [
             "__mul__",
             "__rmul__",
             "__truediv__",
             "__rtruediv__",
-            "mul",
-            "rmul",
-            "truediv",
-            "rtruediv",
         ]
-
-        def _invalid_operator():
-            if is_equality:
-                return NotImplemented
-            else:
-                raise TypeError
+        is_divmod = op_name in ["__divmod__", "__rdivmod__"]
 
         def _binop(self, other):
             if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
-            elif is_scalar(other):
-                if is_comparison:
-                    return NotImplemented
-
-            elif is_array_like(other):
-                if not isinstance(other.dtype, UnitsDtype):
-                    if is_comparison:
-                        return _invalid_operator()
-
             # For multiplication and division other can also be a unit
             if is_multiplication and isinstance(other, UnitInstance):
                 other = u.Quantity(1, other)
 
-            # Convert the thing to quantities
-            self_q: u.Quantity = as_quantity(self)
-            other_q: u.Quantity = as_quantity(other)
-
-            if is_comparison:
-                # Try apply conversion (we need same type for comparisons)
-                if is_array_like(other) and other.dtype != self.dtype:
-                    try:
-                        other_q = convert(other_q, self._unit)
-                    except InvalidUnitConversion:
-                        return _invalid_operator()
-
+            self_q = as_quantity(self)
+            other_q = as_quantity(other)
             result_q = op(self_q, other_q)
 
-            # Divmod returns tuple of two Quantity objects and they have to be handled separately
             if is_divmod:
-                if coerce_to_dtype:
-                    return cls(result_q[0]), cls(result_q[1])
-                return result_q[0], result_q[1]
-            else:
-                if coerce_to_dtype:
-                    return cls(result_q)
-                return result_q
+                # divmod returns a tuple of results
+                return cls(result_q[0]), cls(result_q[1])
+            return cls(result_q)
+
+        return set_function_name(_binop, op_name, cls)
+
+    @classmethod
+    def _create_comparison_method(cls, op):
+        op_name = f"__{op.__name__}__"
+
+        def _binop(self, other):
+            if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
+                # rely on pandas to unbox and dispatch to us
+                return NotImplemented
+
+            # Convert the thing to quantities
+            self_q: u.Quantity = as_quantity(self)
+
+            if op_name in ["__eq__", "__ne__"]:
+                try:
+                    other_q: u.Quantity = as_quantity(other)
+                    if other_q.unit != self_q.unit:
+                        # This enables comparison of temperature values
+                        other_q = convert(other_q, self_q.unit)
+                    return op(self_q, other_q)
+                except (TypeError, InvalidUnitConversion):
+                    # Compare things that cannot be converted to quantity, using astropy logic
+                    return op(self_q, other)
+
+            other_q: u.Quantity = as_quantity(other)
+            if other_q.unit != self_q.unit:
+                # This enables comparison of temperature values
+                other_q = convert(other_q, self_q.unit)
+            return op(self_q, other_q)
 
         return set_function_name(_binop, op_name, cls)
 
@@ -711,6 +690,13 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return pd.Index(self._value).value_counts(
             normalize, sort, ascending, bins, dropna
         )
+
+
+UnitsExtensionArray._add_arithmetic_ops()
+UnitsExtensionArray._add_comparison_ops()
+UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_arithmetic_method(
+    operator.pow
+)
 
 
 @register_series_accessor("units")
@@ -788,9 +774,3 @@ class UnitsDataFrameAccessor:
                 return col
 
         return self.obj.apply(_f)
-
-
-UnitsExtensionArray._add_arithmetic_ops()
-UnitsExtensionArray._add_comparison_ops()
-
-UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_method(operator.pow)
