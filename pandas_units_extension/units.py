@@ -694,7 +694,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
 UnitsExtensionArray._add_arithmetic_ops()
 UnitsExtensionArray._add_comparison_ops()
-UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_method(operator.pow)
+UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_arithmetic_method(
+    operator.pow
+)
 
 
 @register_series_accessor("units")

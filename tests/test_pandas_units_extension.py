@@ -452,15 +452,25 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         tm.assert_series_equal(result, expected)
 
 
-class TestComparisonOps(base.BaseComparisonOpsTests):
-    compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
-        pd.__version__ < "3.1.0",
-        reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
-    )
+compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
+    pd.__version__ < "3.1.0",
+    reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
+)
 
-    @compare_scalar_mark_xfail
-    def test_compare_scalar(self, data, ordering_comparison_op):
-        return super().test_compare_scalar(data, ordering_comparison_op)
+
+class TestComparisonOps(base.BaseComparisonOpsTests):
+    @pytest.mark.parametrize(
+        "op",
+        [
+            *_all_equality_comparison_operators,
+            *[
+                pytest.param(op, marks=compare_scalar_mark_xfail)
+                for op in _all_ordering_comparison_operators
+            ],
+        ],
+    )
+    def test_compare_scalar(self, data, op):
+        return super().test_compare_scalar(data, op)
 
     def test_comparable_units(self):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
