@@ -672,8 +672,6 @@ class TestVarious(BaseExtensionTests):
         expected = UnitsExtensionArray([1, np.nan], unit="m")
         assert unique._unit == expected._unit
         np.testing.assert_equal(expected._value, unique._value)
-        assert unique._unit == expected._unit
-        np.testing.assert_equal(expected._value, unique._value)
 
     @pytest.mark.parametrize(
         ("obj", "expected"),
