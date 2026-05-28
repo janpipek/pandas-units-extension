@@ -26,9 +26,6 @@ __all__ = [
     "UnitsDataFrameAccessor",
     "Unit",
     "__version__",
-    "__url__",
-    "__author__",
-    "__author_email__",
 ]
 from astropy.units import Quantity, Unit
 
@@ -40,4 +37,4 @@ from .units import (
     as_quantity,
     convert,
 )
-from .version import __author__, __author_email__, __url__, __version__
+from .version import __version__
