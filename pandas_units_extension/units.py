@@ -4,7 +4,7 @@ import operator
 import re
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
 
 import astropy.units as u
 import numpy as np
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
         npt,
     )
 # In absence of a proper UnitBase class that also includes function units we define our own here
-UnitInstance: TypeAlias = u.UnitBase | u.FunctionUnitBase | None
+UnitInstance: TypeAlias = u.UnitBase | u.FunctionUnitBase
 
 # Imperial units enabled by default
 u.imperial.enable()
@@ -67,16 +67,14 @@ class UnitsDtype(ExtensionDtype):
     _is_numeric: bool = False
     _metadata: tuple[str] = ("unit",)
 
-    unit: UnitInstance
+    unit: UnitInstance | None
 
-    def __init__(self, unit: ut.UnitLike | None = None) -> None:
-        if isinstance(unit, (UnitInstance, type(None))):
-            self.unit = unit
-        else:
-            self.unit = u.Unit(unit)
+    def __init__(self, unit: UnitInstance | None = None) -> None:
+        self.unit = unit
 
     @classmethod
     def construct_from_string(cls, string: str) -> UnitsDtype:
+        """Parse 'unit', 'unit[]' and 'unit[...]' strings."""
         if not isinstance(string, str):
             raise TypeError(
                 f"'construct_from_string' expects a string, got {type(string)}"
@@ -88,10 +86,10 @@ class UnitsDtype(ExtensionDtype):
         )
         if not match:
             raise TypeError(f"Cannot construct a 'UnitsDtype' from '{string}'")
-        return cls(match["name"])
+        unit_string = match["name"]
+        return cls(u.Unit(unit_string))  # type: ignore[arg-type]
 
-    @classmethod
-    def construct_array_type(cls) -> type:
+    def construct_array_type(self) -> type:
         """Associated extension array."""
         return UnitsExtensionArray
 
@@ -132,13 +130,15 @@ class UnitsDtype(ExtensionDtype):
             # only itself
             return self
 
-        # Check that all dtypes are UnitsDtype
-        if not all([isinstance(t, UnitsDtype) for t in dtypes]):
-            return None
-
-        # Check that the units of all UnitsDtype have the same physical type as self and are therefore convertible to self
-        phy_type: u.PhysicalType = self.unit.physical_type
-        if all([t.unit.physical_type == phy_type for t in dtypes]):
+        # Check that all types share the same physical type as self
+        phy_type: u.PhysicalType = (self.unit or u.Unit("")).physical_type
+        if all(
+            [
+                isinstance(t, UnitsDtype)
+                and (t.unit or u.Unit("")).physical_type == phy_type
+                for t in dtypes
+            ]
+        ):
             return self
 
         # Different physical types, no common dtype
