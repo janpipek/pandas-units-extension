@@ -4,7 +4,7 @@ import operator
 import re
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
 import astropy.units as u
 import numpy as np
@@ -612,11 +612,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 return NotImplemented
 
             # Convert the thing to quantities
-            self_q: u.Quantity = as_quantity(self)
+            self_q = as_quantity(self)
 
             if op_name in ["__eq__", "__ne__"]:
                 try:
-                    other_q: u.Quantity = as_quantity(other)
+                    other_q = as_quantity(other)
                     if other_q.unit != self_q.unit:
                         # This enables comparison of temperature values
                         other_q = convert(other_q, self_q.unit)
@@ -625,7 +625,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                     # Compare things that cannot be converted to quantity, using astropy logic
                     return op(self_q, other)
 
-            other_q: u.Quantity = as_quantity(other)
+            other_q = as_quantity(other)
             if other_q.unit != self_q.unit:
                 # This enables comparison of temperature values
                 other_q = convert(other_q, self_q.unit)
@@ -670,6 +670,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         elif name in to_implement_yet:
             raise NotImplementedError
+
+        else:
+            raise ValueError(f"Invalid reduce operation: '{name}'")
 
         if keepdims:
             return self._from_scalars([result], dtype=self.dtype)
