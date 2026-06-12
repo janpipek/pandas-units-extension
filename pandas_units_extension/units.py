@@ -539,12 +539,14 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         # Convert value to quantity and convert to same unit as self if necessary
         q: u.Quantity = as_quantity(value)
-        q: u.Quantity = convert(q, self._unit)
+        q = convert(q, self._unit)
 
         # Set the values at the given key to the numerical values of the quantity
         self._value[key] = q.value
 
-    def take(self, indices, allow_fill=False, fill_value=None) -> UnitsExtensionArray:
+    def take(
+        self, indices, *, allow_fill=False, fill_value=None
+    ) -> UnitsExtensionArray:
         """Integer-based selection of items."""
         if allow_fill:
             if fill_value is None or np.isnan(fill_value):
