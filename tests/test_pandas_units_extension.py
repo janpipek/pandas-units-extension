@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
+from packaging.version import Version
 from pandas.core import ops, roperator
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
@@ -22,12 +23,12 @@ from pandas.tests.extension.conftest import (
     use_numpy,
 )
 
-from pandas_units_extension.units import (
+from pandas_units_extension import (
+    InvalidUnitConversionError,
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
     as_quantity,
-    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -132,7 +133,7 @@ def dtype():
 @pytest.fixture
 def na_cmp():
     # Note: np.nan != np.nan
-    def cmp(x, y):
+    def cmp(x: u.Quantity, y: u.Quantity) -> bool:
         if np.isnan(x.value):
             return np.isnan(y.value)
         else:
@@ -245,12 +246,15 @@ class TestCasting(base.BaseCastingTests):
 
 
 class TestDtype(base.BaseDtypeTests):
-    pass
+    @pytest.mark.parametrize(("f", "expected"), [(str, "unit"), (repr, "UnitsDtype()")])
+    def test_str_and_repr_without_unit(self, f, expected):
+        dtype = UnitsDtype()
+        assert f(dtype) == expected
 
 
 class TestGroupBy(base.BaseGroupbyTests):
     @pytest.mark.xfail(
-        pd.__version__ < "3.1.0",
+        Version(pd.__version__) < Version("3.1.0"),
         reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
     )
     def test_groupby_agg_extension(self, data_for_grouping):
@@ -443,12 +447,18 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
     @pytest.mark.parametrize(
-        "op", [operator.mul, roperator.rmul, operator.truediv, roperator.rtruediv]
+        ("op", "expected_dtype"),
+        [
+            (operator.mul, "unit[m^2]"),
+            (roperator.rmul, "unit[m^2]"),
+            (operator.truediv, "unit[]"),
+            (roperator.rtruediv, "unit[]"),
+        ],
     )
-    def test_mul_div_with_unit(self, data, op):
+    def test_mul_div_with_unit(self, data, op, expected_dtype):
         s = pd.Series(data)
         result: pd.Series = op(s, u.m)
-        expected = pd.Series(op(data.to_quantity(), u.m), dtype="unit")
+        expected = pd.Series(op(data.to_quantity(), u.m), dtype=expected_dtype)
         tm.assert_series_equal(result, expected)
 
 
@@ -514,7 +524,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
-        with pytest.raises(InvalidUnitConversion):
+        with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(s1, s2)
 
     @pytest.mark.parametrize(
@@ -526,13 +536,13 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     )
     def test_with_incompatible_non_units(self, ordering_comparison_op, other):
         s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
-        with pytest.raises(InvalidUnitConversion):
+        with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(s, other)
-        with pytest.raises(InvalidUnitConversion):
+        with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(other, s)
 
     @pytest.mark.parametrize(
-        ("other", "result"),
+        ("other", "expected_equal"),
         [
             pytest.param(1, pd.Series([False, False]), id="number"),
             pytest.param("1 m", pd.Series([True, False]), id="string-as-unit"),
@@ -551,12 +561,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             ),
         ],
     )
-    def test_eq_ne(self, other, result, equality_comparison_op):
+    def test_eq_ne(self, other, expected_equal, equality_comparison_op):
         s = pd.Series([1, 2], dtype="unit[m]")
         if equality_comparison_op == operator.eq:
-            expected = result
+            expected = expected_equal
         else:
-            expected = ~result
+            expected = ~expected_equal
         result = equality_comparison_op(s, other)
         tm.assert_series_equal(result, expected)
 

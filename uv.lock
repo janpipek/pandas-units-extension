@@ -226,6 +226,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "astropy" },
+    { name = "packaging" },
     { name = "pandas" },
 ]
 
@@ -238,6 +239,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "astropy", specifier = ">=5.1.1" },
+    { name = "packaging", specifier = ">=22" },
     { name = "pandas", specifier = ">=3.0" },
 ]
 
