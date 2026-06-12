@@ -100,6 +100,8 @@ class UnitsDtype(ExtensionDtype):
 
     @property
     def name(self) -> str:
+        if self.unit is None:
+            return self.BASE_NAME
         return f"{self.BASE_NAME}[{self.unit.to_string()}]"
 
     @property
@@ -107,6 +109,8 @@ class UnitsDtype(ExtensionDtype):
         return u.Quantity(np.nan, self.unit)
 
     def __repr__(self) -> str:
+        if self.unit is None:
+            return f"{self.__class__.__name__}()"
         return f'{self.__class__.__name__}("{self.unit.to_string()}")'
 
     def _get_common_dtype(self, dtypes: list[DtypeObj]) -> DtypeObj | None:
@@ -565,7 +569,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         elif len(to_concat) == 1:
             return to_concat[0]
         elif len(set(item._unit for item in to_concat)) != 1:
-            # TODO: And this actually never happens.
+            # This actually never happens but left here for completeness.
             raise ValueError("Not all concatenated arrays have the same units.")
         else:
             return cls(

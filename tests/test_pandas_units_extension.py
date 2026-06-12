@@ -245,7 +245,10 @@ class TestCasting(base.BaseCastingTests):
 
 
 class TestDtype(base.BaseDtypeTests):
-    pass
+    @pytest.mark.parametrize(("f", "expected"), [(str, "unit"), (repr, "UnitsDtype()")])
+    def test_str_and_repr_without_unit(self, f, expected):
+        dtype = UnitsDtype()
+        assert f(dtype) == expected
 
 
 class TestGroupBy(base.BaseGroupbyTests):
@@ -532,7 +535,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             ordering_comparison_op(other, s)
 
     @pytest.mark.parametrize(
-        ("other", "result"),
+        ("other", "expected_equal"),
         [
             pytest.param(1, pd.Series([False, False]), id="number"),
             pytest.param("1 m", pd.Series([True, False]), id="string-as-unit"),
@@ -551,12 +554,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             ),
         ],
     )
-    def test_eq_ne(self, other, result, equality_comparison_op):
+    def test_eq_ne(self, other, expected_equal, equality_comparison_op):
         s = pd.Series([1, 2], dtype="unit[m]")
         if equality_comparison_op == operator.eq:
-            expected = result
+            expected = expected_equal
         else:
-            expected = ~result
+            expected = ~expected_equal
         result = equality_comparison_op(s, other)
         tm.assert_series_equal(result, expected)
 
