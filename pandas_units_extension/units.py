@@ -192,7 +192,7 @@ def convert(
 
 
 def as_quantity(
-    obj: ut.QuantityLike | UnitsExtensionArray, copy: bool = True
+    obj: ut.QuantityLike | UnitsExtensionArray | ABCSeries, copy: bool = True
 ) -> u.Quantity:
     """Try to convert whatever input to a Quantity.
 
@@ -200,7 +200,7 @@ def as_quantity(
     ----------
     obj : QuantityLike
         The object to convert to a Quantity. This can be a QuantityLike, a UnitsExtensionArray,
-        a timedelta64 array, or a list-like of strings that can be parsed as Quantities.
+        a timedelta64 array, or a list-like of strings, Series, that can be parsed as Quantities.
     copy : bool, default True
         Whether to copy the data if the input is already a Quantity or UnitsExtensionArray.
         This is ignored for list-like of strings, as they are already copied by list().
