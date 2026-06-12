@@ -275,12 +275,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             unit: UnitInstance = u.Unit(unit)
 
         if q.unit.is_unity():
-            if unit:
-                q: u.Quantity = q * unit
-        elif unit and q.unit != unit:
+            if unit is not None:
+                q = q * unit
+        elif unit is not None and q.unit != unit:
             # Convert to target unit given by dtype as long as physical types match
             try:
-                q: u.Quantity = convert(q, unit)
+                q = convert(q, unit)
             except InvalidUnitConversion as e:
                 raise InvalidUnitConversion(
                     "Could not convert units in initialization of UnitsExtensionArray: "
