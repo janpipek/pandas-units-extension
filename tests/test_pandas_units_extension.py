@@ -133,7 +133,7 @@ def dtype():
 @pytest.fixture
 def na_cmp():
     # Note: np.nan != np.nan
-    def cmp(x, y):
+    def cmp(x: u.Quantity, y: u.Quantity) -> bool:
         if np.isnan(x.value):
             return np.isnan(y.value)
         else:

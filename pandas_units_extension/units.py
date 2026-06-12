@@ -384,8 +384,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     @classmethod
     def _from_sequence_of_strings(
-        cls, strings, dtype=None, copy=False
+        cls, strings, *, dtype=None, copy=False
     ) -> UnitsExtensionArray:
+        # Note: copy is ignored as we always convert the strings
         values: list[u.Quantity] = [u.Quantity(s) for s in strings]
         unit: UnitInstance = dtype.unit if dtype else None
         return UnitsExtensionArray(values, unit)
