@@ -215,19 +215,19 @@ def as_quantity(
     elif isinstance(obj, UnitsExtensionArray):
         return u.Quantity(obj._value, obj._unit, copy=copy)
     elif isinstance(obj, ABCSeries) and isinstance(obj.dtype, UnitsDtype):
-        return as_quantity(obj.array, copy=copy)
-    elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":
+        return as_quantity(obj.array, copy=copy)  # type: ignore (We know it's a UnitsExtensionArray)
+    elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":  # type: ignore (We know it has a dtype)
         # Note: Timedelta is internally represented as int64
         return u.Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")
     elif is_list_like(obj):
-        obj = list(obj)
+        obj = list(obj)  # type: ignore (a list-like object can be converted to list)
         copy = False  # Already copied by list()
         if len(obj) == 0:
             return u.Quantity([], "")
         elif all(isinstance(item, str) for item in obj):
             return u.Quantity([u.Quantity(item) for item in obj])
     if copy and hasattr(obj, "copy"):
-        obj = obj.copy()
+        obj = obj.copy()  # type: ignore
     return u.Quantity(obj)
 
 
@@ -644,12 +644,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         """Implementation of pandas basic reduce methods."""
         # Borrowed from IntegerArray
 
-        to_proxy: list[str] = ["min", "max", "sum", "mean", "std", "var"]
-        to_nanops: list[str] = ["median", "sem"]
-        to_error: list[str] = ["any", "all", "prod"]
+        to_proxy = ("min", "max", "sum", "mean", "std", "var")
+        to_nanops = ("median", "sem")
+        to_error = ("any", "all", "prod")
 
         # TODO: Check the dimension of this
-        to_implement_yet: list[str] = ["kurt", "skew"]
+        to_implement_yet = ("kurt", "skew")
 
         if name in to_proxy:
             q: u.Quantity = self.to_quantity()
