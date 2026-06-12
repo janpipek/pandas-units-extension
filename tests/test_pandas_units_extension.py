@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
+from packaging.version import Version
 from pandas.core import ops, roperator
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
@@ -253,7 +254,7 @@ class TestDtype(base.BaseDtypeTests):
 
 class TestGroupBy(base.BaseGroupbyTests):
     @pytest.mark.xfail(
-        pd.__version__ < "3.1.0",
+        Version(pd.__version__) < Version("3.1.0"),
         reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
     )
     def test_groupby_agg_extension(self, data_for_grouping):
