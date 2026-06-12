@@ -16,14 +16,14 @@ from pandas.api.extensions import (
     register_dataframe_accessor,
     register_extension_dtype,
     register_series_accessor,
+    take,
 )
+from pandas.api.indexers import check_array_indexer
 from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops
-from pandas.core.algorithms import take
 from pandas.core.dtypes.generic import ABCDataFrame, ABCIndex, ABCSeries
 from pandas.core.indexers import (
-    check_array_indexer,
     getitem_returns_view,
 )
 from pandas.util._exceptions import find_stack_level
