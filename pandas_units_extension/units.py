@@ -4,7 +4,7 @@ import operator
 import re
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal, Self, TypeAlias
 
 import astropy.units as u
 import numpy as np
@@ -138,11 +138,9 @@ class UnitsDtype(ExtensionDtype):
         # Check that all types share the same physical type as self
         phy_type: u.PhysicalType = (self.unit or u.Unit("")).physical_type
         if all(
-            [
-                isinstance(t, UnitsDtype)
-                and (t.unit or u.Unit("")).physical_type == phy_type
-                for t in dtypes
-            ]
+            isinstance(t, UnitsDtype)
+            and (t.unit or u.Unit("")).physical_type == phy_type
+            for t in dtypes
         ):
             return self
 
@@ -486,13 +484,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Fall-back to default variant
         return ExtensionArray.astype(self, dtype, copy=copy)
 
-    def view(self, dtype=None) -> UnitsExtensionArray:
+    def view(self, dtype=None) -> Self:
         """Create a new object with same data behind it."""
-        # TODO: Useful also for 0.25???
         if dtype is not None:
             # TODO: Perhaps implement?
             raise NotImplementedError(dtype)
-        result = UnitsExtensionArray.__new__(UnitsExtensionArray)
+        result = type(self).__new__(type(self))
         result._dtype = self.dtype
         result._value = self._value
         result._readonly = self._readonly
@@ -638,8 +635,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return set_function_name(_binop, op_name, cls)
 
-    def copy(self, deep=False) -> UnitsExtensionArray:
-        return self.__class__(self._value, self._unit, copy=True)
+    def copy(self) -> Self:
+        return type(self)._simple_new(self._value.copy(), self.dtype)
 
     def _reduce(
         self, name: str, skipna: bool = True, keepdims: bool = False, **kwargs
@@ -688,8 +685,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self._value, None
 
     @classmethod
-    def _from_factorized(cls, values, original) -> UnitsExtensionArray:
-        return UnitsExtensionArray(values, original.dtype.unit)
+    def _from_factorized(cls, values, original) -> Self:
+        return cls(values, original.dtype.unit)
 
     def value_counts(
         self, normalize=False, sort=True, ascending=False, bins=None, dropna=True
