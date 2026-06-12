@@ -446,12 +446,18 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         self._check_divmod_op(ser[0], ops.rdivmod, ser)
 
     @pytest.mark.parametrize(
-        "op", [operator.mul, roperator.rmul, operator.truediv, roperator.rtruediv]
+        ("op", "expected_dtype"),
+        [
+            (operator.mul, "unit[m^2]"),
+            (roperator.rmul, "unit[m^2]"),
+            (operator.truediv, "unit[]"),
+            (roperator.rtruediv, "unit[]"),
+        ],
     )
-    def test_mul_div_with_unit(self, data, op):
+    def test_mul_div_with_unit(self, data, op, expected_dtype):
         s = pd.Series(data)
         result: pd.Series = op(s, u.m)
-        expected = pd.Series(op(data.to_quantity(), u.m), dtype="unit")
+        expected = pd.Series(op(data.to_quantity(), u.m), dtype=expected_dtype)
         tm.assert_series_equal(result, expected)
 
 
