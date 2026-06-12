@@ -1,6 +1,6 @@
 [project]
 name = "pandas-units-extension"
-version = "0.1.0"
+version = "0.2.0"
 description = "Extension pandas dtype and array for physical units and quantities from astropy."
 readme = "README.md"
 license = { text = "MIT" }
