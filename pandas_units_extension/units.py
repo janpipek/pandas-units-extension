@@ -43,12 +43,17 @@ UnitInstance: TypeAlias = u.UnitBase | u.FunctionUnitBase
 u.imperial.enable()
 
 
-class InvalidUnitConversion(ValueError):
+class InvalidUnitConversionError(ValueError):
     """The unit cannot be converted to another one."""
 
 
-class InvalidUnit(ValueError):
+class InvalidUnitError(ValueError):
     """The unit does not exist."""
+
+
+# Temporary deprecated aliases
+InvalidUnitConversion = InvalidUnitConversionError
+InvalidUnit = InvalidUnitError
 
 
 @register_extension_dtype

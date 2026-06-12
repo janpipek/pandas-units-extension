@@ -22,12 +22,12 @@ from pandas.tests.extension.conftest import (
     use_numpy,
 )
 
-from pandas_units_extension.units import (
+from pandas_units_extension import (
+    InvalidUnitConversionError,
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
     as_quantity,
-    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -514,7 +514,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
         s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
 
-        with pytest.raises(InvalidUnitConversion):
+        with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(s1, s2)
 
     @pytest.mark.parametrize(
@@ -526,9 +526,9 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     )
     def test_with_incompatible_non_units(self, ordering_comparison_op, other):
         s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
-        with pytest.raises(InvalidUnitConversion):
+        with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(s, other)
-        with pytest.raises(InvalidUnitConversion):
+        with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(other, s)
 
     @pytest.mark.parametrize(

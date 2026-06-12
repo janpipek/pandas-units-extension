@@ -19,6 +19,8 @@ Examples
 __all__ = [
     "as_quantity",
     "convert",
+    "InvalidUnitError",
+    "InvalidUnitConversionError",
     "Quantity",
     "UnitsDtype",
     "UnitsExtensionArray",
@@ -29,6 +31,12 @@ __all__ = [
 ]
 from astropy.units import Quantity, Unit
 
+from .units import (
+    InvalidUnit as InvalidUnitError,
+)
+from .units import (
+    InvalidUnitConversion as InvalidUnitConversionError,
+)
 from .units import (
     UnitsDataFrameAccessor,
     UnitsDtype,
