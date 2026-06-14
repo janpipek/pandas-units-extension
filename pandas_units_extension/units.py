@@ -527,24 +527,22 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def __setitem__(
         self, key, value: ut.QuantityLike | UnitsExtensionArray | None
     ) -> None:
-        # Return early if value is empty list or None, as this is a no-op for __setitem__
-        if (is_list_like(value) and len(value) == 0) or value is None:
-            return
-
-        # If readonly flag is set array cannot be modified in place, dispatch to pandas to comply with CoW
         if self._readonly:
             raise ValueError("Cannot modify read-only array")
 
-        # Convert NaN to Quantity with correct unit
+        # Convert None/NaN to Quantity with correct unit
+        if value is None:
+            value = np.nan
         if is_scalar(value) and np.isnan(value):
             value = u.Quantity(value, self._unit)
 
         # Use pandas utility function to check and convert the item to a valid indexer
         key = check_array_indexer(self, key)
 
-        # Convert value to quantity and convert to same unit as self if necessary
+        # Convert value to quantity and convert to same unit as self if necessary and possible
         q: u.Quantity = as_quantity(value)
-        q = convert(q, self._unit)
+        if q.isscalar or len(q) > 0:
+            q = convert(q, self._unit)
 
         # Set the values at the given key to the numerical values of the quantity
         self._value[key] = q.value
