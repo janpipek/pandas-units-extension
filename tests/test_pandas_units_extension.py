@@ -406,6 +406,19 @@ class TestQuantile:
         assert result == 2.0 * u.m
 
 
+class TestValueCounts:
+    def test_value_counts_with_unit(self):
+        s = pd.Series([1, 1, 2], dtype="unit[m]")
+        vc = s.value_counts()
+        expected = pd.Series(
+            [2, 1],
+            index=UnitsExtensionArray([1 * u.m, 2 * u.m]),
+            dtype="int64",
+            name="count",
+        )
+        tm.assert_series_equal(vc, expected)
+
+
 class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     divmod_exc = None
     series_scalar_exc = None
