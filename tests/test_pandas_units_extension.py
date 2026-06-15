@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
+from astropy.constants.constant import Unit
 from pandas.core import ops, roperator
 from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
@@ -23,11 +24,11 @@ from pandas.tests.extension.conftest import (
 )
 
 from pandas_units_extension.units import (
+    InvalidUnitConversion,
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
     as_quantity,
-    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -310,6 +311,21 @@ class TestMethods(base.BaseMethodsTests):
         assert arr.searchsorted(c) == 2
         assert arr.searchsorted(c, side="right") == 3
 
+    @pytest.mark.parametrize("dropna", [True, False])
+    def test_value_counts(self, all_data, dropna):
+        # Custom test required, as the parent removes the units info
+        s = pd.Series([1, 1, 2, np.nan], dtype="unit[m]")
+        result = s.value_counts(dropna=dropna)
+        expected_index = [1, 2] if dropna else [1, 2, np.nan]
+        expected_values = [2, 1] if dropna else [2, 1, 1]
+        expected = pd.Series(
+            expected_values,
+            index=UnitsExtensionArray(expected_index, unit=u.m),
+            dtype="int64",
+            name="count",
+        )
+        tm.assert_series_equal(result, expected)
+
 
 class TestReshaping(base.BaseReshapingTests):
     pass
@@ -404,19 +420,6 @@ class TestQuantile:
         source = pd.Series([1, 2, 3], dtype="unit[m]")
         result = source.quantile(0.5)
         assert result == 2.0 * u.m
-
-
-class TestValueCounts:
-    def test_value_counts_with_unit(self):
-        s = pd.Series([1, 1, 2], dtype="unit[m]")
-        vc = s.value_counts()
-        expected = pd.Series(
-            [2, 1],
-            index=UnitsExtensionArray([1 * u.m, 2 * u.m]),
-            dtype="int64",
-            name="count",
-        )
-        tm.assert_series_equal(vc, expected)
 
 
 class TestArithmeticsOps(base.BaseArithmeticOpsTests):
