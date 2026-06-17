@@ -482,7 +482,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
-    pd.__version__ < "3.1.0",
+    Version(pd.__version__) < Version("3.1.0"),
     reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
 )
 
@@ -690,7 +690,7 @@ class TestVarious(BaseExtensionTests):
         tm.assert_series_equal(expected, concatenated)
 
     @pytest.mark.xfail(
-        pd.__version__ < "3.1.0",
+        Version(pd.__version__) < Version("3.1.0"),
         reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
     )
     def test_add_new_value_with_different_unit(self):
