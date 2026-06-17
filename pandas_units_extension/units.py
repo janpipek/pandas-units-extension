@@ -51,9 +51,14 @@ class InvalidUnitError(ValueError):
     """The unit does not exist."""
 
 
-# Temporary deprecated aliases
-InvalidUnitConversion = InvalidUnitConversionError
-InvalidUnit = InvalidUnitError
+@warnings.deprecated("Use InvalidUnitConversionError instead.")
+class InvalidUnitConversion(InvalidUnitConversionError):
+    pass
+
+
+@warnings.deprecated("Use InvalidUnitError instead.")
+class InvalidUnit(InvalidUnitError):
+    pass
 
 
 @register_extension_dtype

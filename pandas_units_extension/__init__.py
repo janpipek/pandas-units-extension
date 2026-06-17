@@ -32,12 +32,8 @@ __all__ = [
 from astropy.units import Quantity, Unit
 
 from .units import (
-    InvalidUnit as InvalidUnitError,
-)
-from .units import (
-    InvalidUnitConversion as InvalidUnitConversionError,
-)
-from .units import (
+    InvalidUnitError,
+    InvalidUnitConversionError,
     UnitsDataFrameAccessor,
     UnitsDtype,
     UnitsExtensionArray,
