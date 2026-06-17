@@ -140,10 +140,10 @@ class UnitsDtype(ExtensionDtype):
             return self
 
         # Check that all types share the same physical type as self
-        phy_type: u.PhysicalType = (self.unit or u.Unit("")).physical_type
+        phy_type: u.PhysicalType = (self.unit or u.physical.dimensionless).physical_type
         if all(
             isinstance(t, UnitsDtype)
-            and (t.unit or u.Unit("")).physical_type == phy_type
+            and (t.unit or u.physical.dimensionless).physical_type == phy_type
             for t in dtypes
         ):
             return self
