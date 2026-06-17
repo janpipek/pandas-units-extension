@@ -706,12 +706,11 @@ class UnitsSeriesAccessor:
     """The series the accessor methods are applied on."""
 
     @property
-    def array(self) -> UnitsExtensionArray:
+    def _array(self) -> UnitsExtensionArray:
         """Shortcut to the extension array of the series."""
         return self.series.array  # type: ignore
 
     def __init__(self, series: pd.Series[UnitsExtensionArray]) -> None:
-        # Inspired by fletcher
         if not isinstance(series.array, UnitsExtensionArray):
             raise AttributeError("Only UnitsExtensionArray has units accessor.")
         self.series = series
@@ -719,7 +718,7 @@ class UnitsSeriesAccessor:
     @property
     def unit(self) -> UnitInstance:
         """The Series' unit."""
-        return self.series.array._unit
+        return self._array._unit
 
     def _wrap(self, result: UnitsExtensionArray) -> pd.Series:
         """Construct a series with different data but the same index and name."""
@@ -734,21 +733,19 @@ class UnitsSeriesAccessor:
 
         Parameters
         ----------
-        unit : UnitLike
-            The unit to convert to.
-        equivalencies : list of tuple, optional
-            List of equivalencies to try if the conversion fails. See astropy documentation for details.
+        unit : The unit to convert to.
+        equivalencies : List of equivalencies to try if the conversion fails. See astropy documentation for details.
 
         Returns
         -------
         The converted series.
         """
-        new_array: UnitsExtensionArray = self.series.array.to(unit, equivalencies)
+        new_array: UnitsExtensionArray = self._array.to(unit, equivalencies)
         return self._wrap(new_array)
 
     def to_quantity(self) -> u.Quantity:
         """Convert series to native Quantity."""
-        return self.series.array.to_quantity()
+        return self._array.to_quantity()
 
     def to_si(self) -> pd.Series:
         """Convert series to a relevant SI unit."""
