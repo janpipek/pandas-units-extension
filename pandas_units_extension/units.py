@@ -545,6 +545,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Convert value to quantity and convert to same unit as self if necessary and possible
         q: u.Quantity = as_quantity(value)
         if q.isscalar or len(q) > 0:
+            # Note: empty quantity is dimensionless and cannot be converted to this dim
             q = convert(q, self._unit)
 
         # Set the values at the given key to the numerical values of the quantity
