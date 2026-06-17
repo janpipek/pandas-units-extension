@@ -194,11 +194,11 @@ def convert(
         if q.unit.physical_type == "temperature":
             return q.to(new_unit, u.temperature())
         else:
-            raise InvalidUnitConversion(
+            raise InvalidUnitConversionError(
                 f"Cannot convert unit '{q.unit}' to '{new_unit}'."
             ) from None
     except ValueError:
-        raise InvalidUnit(f"Unit '{new_unit}' does not exist.") from None
+        raise InvalidUnitError(f"Unit '{new_unit}' does not exist.") from None
 
 
 def as_quantity(
@@ -288,8 +288,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             # Convert to target unit given by dtype as long as physical types match
             try:
                 q = convert(q, unit)
-            except InvalidUnitConversion as e:
-                raise InvalidUnitConversion(
+            except InvalidUnitConversionError as e:
+                raise InvalidUnitConversionError(
                     "Could not convert units in initialization of UnitsExtensionArray: "
                 ) from e
 
@@ -632,7 +632,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                         # This enables comparison of temperature values
                         other_q = convert(other_q, self_q.unit)
                     return op(self_q, other_q)
-                except (TypeError, InvalidUnitConversion):
+                except (TypeError, InvalidUnitConversionError):
                     # Compare things that cannot be converted to quantity, using astropy logic
                     return op(self_q, other)
 
