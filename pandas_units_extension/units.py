@@ -4,6 +4,8 @@ import operator
 import re
 import sys
 import warnings
+
+from astropy.units import PhysicalType
 from typing_extensions import deprecated  # warnings.deprecated is Python >= 3.13
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
@@ -145,13 +147,16 @@ class UnitsDtype(ExtensionDtype):
             # only itself
             return self
 
+        def _get_physical_type(dtype: Any) -> PhysicalType | None:
+            if isinstance(dtype, UnitsDtype):
+                if dtype.unit:
+                    return dtype.unit.physical_type
+                return u.physical.dimensionless
+            return None
+
         # Check that all types share the same physical type as self
-        phy_type: u.PhysicalType = (self.unit or u.physical.dimensionless).physical_type
-        if all(
-            isinstance(t, UnitsDtype)
-            and (t.unit or u.physical.dimensionless).physical_type == phy_type
-            for t in dtypes
-        ):
+        phy_type: u.PhysicalType | None = _get_physical_type(self)
+        if all(_get_physical_type(t) == phy_type for t in dtypes):
             return self
 
         # Different physical types, no common dtype
