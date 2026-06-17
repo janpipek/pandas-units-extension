@@ -4,7 +4,7 @@ import operator
 import re
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, Literal, Self, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
 import astropy.units as u
 import numpy as np
@@ -245,15 +245,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         Parameters
         ----------
-        values : np.ndarray
-            The numerical values (without unit).
-        dtype : UnitsDtype
-            The dtype of the new array, which contains the unit information.
+        values : The numerical values (without unit).
+        dtype : The dtype of the new array, which contains the unit information.
 
         Returns
         -------
-        UnitsExtensionArray
-            A new UnitsExtensionArray with the given values and dtype.
+        A new UnitsExtensionArray with the given values and dtype.
         """
         result = UnitsExtensionArray.__new__(cls)
         result._dtype = dtype
@@ -489,12 +486,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Fall-back to default variant
         return ExtensionArray.astype(self, dtype, copy=copy)
 
-    def view(self, dtype=None) -> Self:
+    def view(self, dtype=None) -> UnitsExtensionArray:
         """Create a new object with same data behind it."""
         if dtype is not None:
             # TODO: Perhaps implement?
             raise NotImplementedError(dtype)
-        result = type(self).__new__(type(self))
+        result = UnitsExtensionArray.__new__(type(self))
         result._dtype = self.dtype
         result._value = self._value
         result._readonly = self._readonly
@@ -559,19 +556,19 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         values = take(
             self._value, indices, allow_fill=allow_fill, fill_value=fill_value
         )
-        return UnitsExtensionArray(values, self._unit)
+        return UnitsExtensionArray._simple_new(values, self._dtype)
 
     @classmethod
     def _concat_same_type(cls, to_concat) -> UnitsExtensionArray:
         if len(to_concat) == 0:
-            return cls([])
+            return UnitsExtensionArray([])
         elif len(to_concat) == 1:
             return to_concat[0]
         elif len(set(item._unit for item in to_concat)) != 1:
             # This actually never happens but left here for completeness.
             raise ValueError("Not all concatenated arrays have the same units.")
         else:
-            return cls(
+            return UnitsExtensionArray(
                 np.concatenate([item._value for item in to_concat]), to_concat[0]._unit
             )
 
@@ -640,8 +637,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return set_function_name(_binop, op_name, cls)
 
-    def copy(self) -> Self:
-        return type(self)._simple_new(self._value.copy(), self.dtype)
+    def copy(self) -> UnitsExtensionArray:
+        return UnitsExtensionArray._simple_new(self._value.copy(), self.dtype)
 
     def _reduce(
         self, name: str, skipna: bool = True, keepdims: bool = False, **kwargs
@@ -690,8 +687,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self._value, None
 
     @classmethod
-    def _from_factorized(cls, values, original) -> Self:
-        return cls(values, original.dtype.unit)
+    def _from_factorized(cls, values, original) -> UnitsExtensionArray:
+        return UnitsExtensionArray(values, original.dtype.unit)
 
     def value_counts(self, dropna=True) -> pd.Series:
         # Units preserved in the result index
