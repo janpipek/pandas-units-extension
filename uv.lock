@@ -242,7 +242,7 @@ requires-dist = [
     { name = "astropy", specifier = ">=5.1.1" },
     { name = "packaging", specifier = ">=22" },
     { name = "pandas", specifier = ">=3.0" },
-    { name = "typing-extensions", specifier = ">=4.15.0" },
+    { name = "typing-extensions", specifier = ">=4.5.0" },
 ]
 
 [package.metadata.requires-dev]
