@@ -683,13 +683,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _from_factorized(cls, values, original) -> UnitsExtensionArray:
         return UnitsExtensionArray(values, original.dtype.unit)
 
-    def value_counts(
-        self, normalize=False, sort=True, ascending=False, bins=None, dropna=True
-    ) -> pd.Series:
-        # TODO: Is it possible to include units? We'd need custom index
-        return pd.Index(self._value).value_counts(
-            normalize, sort, ascending, bins, dropna
-        )
+    def value_counts(self, dropna=True) -> pd.Series:
+        # Units preserved in the result index
+        result = pd.Index(self._value).value_counts(dropna=dropna)
+        result_index = UnitsExtensionArray(result.index, self.dtype.unit)
+        result.index = result_index
+        return result
 
 
 UnitsExtensionArray._add_arithmetic_ops()

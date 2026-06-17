@@ -23,11 +23,11 @@ from pandas.tests.extension.conftest import (
 )
 
 from pandas_units_extension.units import (
+    InvalidUnitConversion,
     UnitsDtype,
     UnitsExtensionArray,
     UnitsSeriesAccessor,
     as_quantity,
-    InvalidUnitConversion,
 )
 
 _all_arithmetic_operators: list[str] = [
@@ -309,6 +309,25 @@ class TestMethods(base.BaseMethodsTests):
         c = u.Quantity(0.003, "km")
         assert arr.searchsorted(c) == 2
         assert arr.searchsorted(c, side="right") == 3
+
+    @pytest.mark.parametrize(
+        ("dropna", "expected_index", "expected_values"),
+        [
+            pytest.param(True, [1, 2], [2, 1], id="dropna=True"),
+            pytest.param(False, [1, 2, np.nan], [2, 1, 1], id="dropna=False"),
+        ],
+    )
+    def test_value_counts(self, dropna, expected_index, expected_values):
+        # Custom test required, as the parent removes the units info
+        s = pd.Series([1, 1, 2, np.nan], dtype="unit[m]")
+        result = s.value_counts(dropna=dropna)
+        expected = pd.Series(
+            expected_values,
+            index=UnitsExtensionArray(expected_index, unit=u.m),
+            dtype="int64",
+            name="count",
+        )
+        tm.assert_series_equal(result, expected)
 
 
 class TestReshaping(base.BaseReshapingTests):
