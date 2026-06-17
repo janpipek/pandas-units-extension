@@ -4,6 +4,7 @@ import operator
 import re
 import sys
 import warnings
+from typing_extensions import deprecated  # warnings.deprecated is Python >= 3.13
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
 import astropy.units as u
@@ -51,12 +52,12 @@ class InvalidUnitError(ValueError):
     """The unit does not exist."""
 
 
-@warnings.deprecated("Use InvalidUnitConversionError instead.")
+@deprecated("Use InvalidUnitConversionError instead.")
 class InvalidUnitConversion(InvalidUnitConversionError):
     pass
 
 
-@warnings.deprecated("Use InvalidUnitError instead.")
+@deprecated("Use InvalidUnitError instead.")
 class InvalidUnit(InvalidUnitError):
     pass
 

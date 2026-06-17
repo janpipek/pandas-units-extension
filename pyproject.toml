@@ -13,6 +13,7 @@ dependencies = [
     "pandas>=3.0",
     "astropy>=5.1.1",
     "packaging>=22",
+    "typing-extensions>=4.5.0",
 ]
 
 [project.urls]
