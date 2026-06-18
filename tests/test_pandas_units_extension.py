@@ -689,6 +689,13 @@ class TestVarious(BaseExtensionTests):
         expected = pd.Series([u.Quantity("1 m"), u.Quantity("1 m/s")], dtype=object)
         tm.assert_series_equal(expected, concatenated)
 
+    def test_concat_no_unit(self):
+        s1 = pd.Series(["1 m"], dtype="unit")
+        s2 = pd.Series([2, 3])
+        concatenated = pd.concat([s1, s2]).reset_index(drop=True)
+        expected = pd.Series([u.Quantity("1 m"), 2, 3], dtype=object)
+        tm.assert_series_equal(expected, concatenated)
+
     @pytest.mark.xfail(
         Version(pd.__version__) < Version("3.1.0"),
         reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
