@@ -155,7 +155,7 @@ class UnitsDtype(ExtensionDtype):
             return None
 
         # Check that all types share the same physical type as self
-        phy_type: u.PhysicalType | None = _get_physical_type(self)
+        phy_type = _get_physical_type(self)
         if all(_get_physical_type(t) == phy_type for t in dtypes):
             return self
 
