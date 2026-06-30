@@ -721,20 +721,27 @@ UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_arithmetic_method(
 class UnitsSeriesAccessor:
     """Accessor adding unit functionality to series."""
 
-    def __init__(self, obj: pd.Series[UnitsExtensionArray]) -> None:
-        # Inspired by fletcher
-        if not isinstance(obj.array, UnitsExtensionArray):
+    series: pd.Series[UnitsExtensionArray]
+    """The series the accessor methods are applied on."""
+
+    @property
+    def _array(self) -> UnitsExtensionArray:
+        """Shortcut to the extension array of the series."""
+        return self.series.array  # type: ignore
+
+    def __init__(self, series: pd.Series[UnitsExtensionArray]) -> None:
+        if not isinstance(series.array, UnitsExtensionArray):
             raise AttributeError("Only UnitsExtensionArray has units accessor.")
-        self.obj: pd.Series[UnitsExtensionArray] = obj
+        self.series = series
 
     @property
     def unit(self) -> UnitInstance:
         """The Series' unit."""
-        return self.obj.array._unit
+        return self._array._unit
 
     def _wrap(self, result: UnitsExtensionArray) -> pd.Series:
-        """Construct a series with different data but same index and name."""
-        return pd.Series(result, name=self.obj.name, index=self.obj.index)
+        """Construct a series with different data but the same index and name."""
+        return pd.Series(result, name=self.series.name, index=self.series.index)
 
     def to(
         self,
@@ -745,28 +752,19 @@ class UnitsSeriesAccessor:
 
         Parameters
         ----------
-        unit : UnitLike
-            The unit to convert to.
-        equivalencies : list of tuple, optional
-            List of equivalencies to try if the conversion fails. See astropy documentation for details.
+        unit : The unit to convert to.
+        equivalencies : List of equivalencies to try if the conversion fails. See astropy documentation for details.
 
         Returns
         -------
-        Series
-            The converted series.
+        The converted series.
         """
-        new_array: UnitsExtensionArray = self.obj.array.to(unit, equivalencies)
+        new_array: UnitsExtensionArray = self._array.to(unit, equivalencies)
         return self._wrap(new_array)
 
     def to_quantity(self) -> u.Quantity:
-        """Convert series to native Quantity.
-
-        Returns
-        -------
-        Quantity
-            The converted series.
-        """
-        return self.obj.array.to_quantity()
+        """Convert series to native Quantity."""
+        return self._array.to_quantity()
 
     def to_si(self) -> pd.Series:
         """Convert series to a relevant SI unit."""
@@ -775,12 +773,16 @@ class UnitsSeriesAccessor:
         return self._wrap(new_array)
 
 
+# TODO: Add more useful methods for multi-column conversion?
 @register_dataframe_accessor("units")
 class UnitsDataFrameAccessor:
     """Accessor adding unit functionality to data frames."""
 
-    def __init__(self, obj: pd.DataFrame) -> None:
-        self.obj: pd.DataFrame = obj
+    df: pd.DataFrame
+    """The dataframe the accessor methods are applied on."""
+
+    def __init__(self, df: pd.DataFrame) -> None:
+        self.df = df
 
     def to_si(self) -> pd.DataFrame:
         """Convert all columns that are of unit type to SI."""
@@ -791,4 +793,4 @@ class UnitsDataFrameAccessor:
             except AttributeError:
                 return col
 
-        return self.obj.apply(_f)
+        return self.df.apply(_f)
