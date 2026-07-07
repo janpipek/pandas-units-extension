@@ -32,10 +32,11 @@ from pandas.util._exceptions import find_stack_level
 
 if TYPE_CHECKING:
     import astropy.units.typing as ut
-    from pandas._typing import (
+    from pandas.common.core import (
         DtypeObj,
         NumpySorter,
         NumpyValueArrayLike,
+        NpDtype,
         npt,
     )
 # In absence of a proper UnitBase class that also includes function units we define our own here
@@ -314,7 +315,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return len(self._value)
 
     def __array__(
-        self, dtype: DtypeObj = object, copy: bool | None = None
+        self, dtype: NpDtype | None = object, copy: bool | None = None
     ) -> np.ndarray:
         """
         Convert implicitly to a numpy array.
@@ -323,7 +324,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         Parameters
         ----------
-        dtype : dtype, default object
+        dtype : dtype-like, default None
             The desired dtype for the array. If not given, will convert to object array containing Quantity objects.
             If given, will convert the numerical values to the given dtype and ignore the unit information.
         copy : bool, default None
@@ -335,6 +336,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             The array representation of the data.
         """
         # Create array depending on dtype
+        if dtype is None:
+            dtype = object
         if dtype == object:  # noqa: E721 (the equality is complex here)
             if copy is False:
                 raise ValueError(
@@ -343,10 +346,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             arr = np.array(list(as_quantity(self)), dtype=object)
             # Converting self first to a Quantity and then to a ndarray requires a copy, so copy flag will be set to True
             copy = True
-        elif dtype:
-            arr = self._value.astype(dtype, copy=copy)
         else:
-            arr = np.asarray(self._value, copy=copy)
+            arr = np.asarray(self._value, dtype=dtype, copy=copy)
 
         # Set writable flag depending on self._readonly and only when no copy was made
         if self._readonly and copy is not True:
@@ -442,7 +443,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def searchsorted(
         self,
-        value: NumpyValueArrayLike | u.Quantity | UnitsExtensionArray,
+        value: NumpyValueArrayLike | ExtensionArray | u.Quantity,
         side: Literal["left", "right"] = "left",
         sorter: NumpySorter | None = None,
     ) -> npt.NDArray[np.intp] | np.intp:
