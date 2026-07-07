@@ -75,7 +75,8 @@ class UnitsDtype(ExtensionDtype):
 
     The name is formed as "unit[.*]" where the inside of the square
     brackets must be a unit name as understood by astropy units.
-    "unit[]" means dimensionless quantity, "unit" means the unit is not specified.
+    "unit" means the unit is not specified and will be extracted
+    from the respective array.
 
     Parameters
     ----------

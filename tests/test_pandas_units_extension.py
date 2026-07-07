@@ -97,7 +97,9 @@ def data_for_twos():
 
 @pytest.fixture
 def data_missing():
-    """Length-2 array with [NA, Valid]"""
+    """
+    Length-2 array with [NA, Valid].
+    """
     return UnitsExtensionArray([np.nan, 1] * u.m)
 
 
@@ -118,7 +120,9 @@ def coercible_data():
 
 @pytest.fixture(params=["data", "data_missing"])
 def all_data(request, data, data_missing):
-    """Parametrized fixture giving 'data' and 'data_missing'"""
+    """
+    Parametrized fixture giving 'data' and 'data_missing'.
+    """
     if request.param == "data":
         return data
     elif request.param == "data_missing":
@@ -155,7 +159,8 @@ def data_for_grouping():
 
 @pytest.fixture
 def data_for_sorting():
-    """Length-3 array with a known sort order.
+    """
+    Length-3 array with a known sort order.
 
     This should be three items [B, C, A] with
     A < B < C
@@ -165,7 +170,8 @@ def data_for_sorting():
 
 @pytest.fixture
 def data_missing_for_sorting():
-    """Length-3 array with a known sort order.
+    """
+    Length-3 array with a known sort order.
 
     This should be three items [B, NA, A] with
     A < B and NA missing.
@@ -185,7 +191,6 @@ def data_repeated(data):
 # prod forbidden
 # kurt, skew not implemented
 _all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
-#'kurt', 'skew']
 
 
 @pytest.fixture

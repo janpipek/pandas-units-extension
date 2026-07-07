@@ -1,4 +1,5 @@
-"""Extension pandas dtype and array for physical units.
+"""
+Extension pandas dtype and array for physical units.
 
 It is based on astropy Quantities.
 
