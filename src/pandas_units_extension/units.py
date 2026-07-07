@@ -317,7 +317,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return len(self._value)
 
     def __array__(
-        self, dtype: NpDtype | None = object, copy: bool | None = None
+        self, dtype: NpDtype | None = None, copy: bool | None = None
     ) -> np.ndarray:
         """
         Convert implicitly to a numpy array.
