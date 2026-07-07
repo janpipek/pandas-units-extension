@@ -767,16 +767,16 @@ class TestVarious(BaseExtensionTests):
             assert np.may_share_memory(result, expected) is False
 
 
-class TestArray:
+class TestArrayInterface:
     @pytest.mark.parametrize(
         ("copy", "dtype"),
         [
             (True, float),
             (False, float),
-            (False, float),
-            (True, "f"),
-            (None, int),
             (None, float),
+            (True, "f"),
+            (True, int),
+            (None, int),
             (True, "i"),
         ],
     )

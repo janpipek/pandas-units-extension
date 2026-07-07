@@ -326,7 +326,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         Parameters
         ----------
-        dtype : dtype-like, default None
+        dtype : dtype-like or None, default None
             The desired dtype for the array. If not given, will convert to object array containing Quantity objects.
             If given, will convert the numerical values to the given dtype and ignore the unit information.
         copy : bool, default None
