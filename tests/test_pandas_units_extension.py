@@ -783,3 +783,33 @@ class TestVarious(BaseExtensionTests):
         with u.imperial.enable():
             expected = UnitsExtensionArray(data.to_quantity().to("ft"))
         tm.assert_extension_array_equal(result, expected)
+
+
+class TestArrayInterface:
+    @pytest.mark.parametrize(
+        ("copy", "dtype"),
+        [
+            (True, float),
+            (False, float),
+            (None, float),
+            (True, "f"),
+            (True, int),
+            (None, int),
+            (True, "i"),
+        ],
+    )
+    def test_allowed_numeric_conversions(self, data, dtype, copy):
+        result = np.array(data, dtype=dtype, copy=copy)
+        assert np.array_equal(result, [1, 2] + 8 * [3])
+
+    @pytest.mark.parametrize("copy", [True, None])
+    @pytest.mark.parametrize("dtype", [object, None, "O"])
+    def test_allowed_object_conversion(self, data, dtype, copy):
+        result = np.array(data, copy=True)
+        expected = np.array([1 * u.m, 2 * u.m] + 8 * [3 * u.m], dtype=object)
+        assert np.array_equal(result, expected)
+
+    @pytest.mark.parametrize("dtype", [int, None, object, "O", "i"])
+    def test_disallowed_conversions(self, data, dtype):
+        with pytest.raises(ValueError):
+            np.array(data, dtype=dtype, copy=False)
