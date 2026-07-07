@@ -14,6 +14,8 @@ dependencies = [
     "astropy>=5.1.1",
     "packaging>=22",
     "typing-extensions>=4.5.0",
+    "mypy>=2.1.0",
+    "pandas-stubs>=3.0.3.260530",
 ]
 
 [project.urls]
@@ -28,3 +30,11 @@ dev = [
     "pytest>=9.0.3",
     "hypothesis",
 ]
+
+[tool.mypy]
+
+
+# No type information available for astropy
+[[tool.mypy.overrides]]
+module = ["astropy.*"]
+ignore_missing_imports = true
