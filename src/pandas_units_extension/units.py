@@ -7,12 +7,12 @@ import warnings
 
 from astropy.units import PhysicalType
 from typing_extensions import deprecated  # warnings.deprecated is Python >= 3.13
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, ClassVar
 
 import astropy.units as u
 import numpy as np
 import pandas as pd
-from pandas.api.extensions import (
+from pandas.api.extensions import (  # type: ignore[attr-defined] # pandas-stubs not complete
     ExtensionArray,
     ExtensionDtype,
     ExtensionScalarOpsMixin,
@@ -25,7 +25,6 @@ from pandas.api.indexers import check_array_indexer
 from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops
-from pandas.core.dtypes.generic import ABCDataFrame, ABCIndex, ABCSeries
 from pandas.core.indexers import (
     getitem_returns_view,
 )
@@ -33,10 +32,11 @@ from pandas.util._exceptions import find_stack_level
 
 if TYPE_CHECKING:
     import astropy.units.typing as ut
-    from pandas._typing import (
+    from pandas.common.core import (
         DtypeObj,
         NumpySorter,
         NumpyValueArrayLike,
+        NpDtype,
         npt,
     )
 # In absence of a proper UnitBase class that also includes function units we define our own here
@@ -88,8 +88,7 @@ class UnitsDtype(ExtensionDtype):
 
     BASE_NAME: str = "unit"
 
-    type: type = u.Quantity
-    kind: str = "O"
+    type: ClassVar[type] = u.Quantity
 
     _is_numeric: bool = False
     _metadata: tuple[str] = ("unit",)
@@ -200,7 +199,7 @@ def convert(
 
 
 def as_quantity(
-    obj: ut.QuantityLike | UnitsExtensionArray | ABCSeries, copy: bool = True
+    obj: ut.QuantityLike | UnitsExtensionArray | pd.Series, copy: bool = True
 ) -> u.Quantity:
     """
     Convert whatever input to a Quantity.
@@ -223,13 +222,13 @@ def as_quantity(
         return u.Quantity(obj, copy=copy)
     elif isinstance(obj, UnitsExtensionArray):
         return u.Quantity(obj._value, obj._unit, copy=copy)
-    elif isinstance(obj, ABCSeries) and isinstance(obj.dtype, UnitsDtype):
-        return as_quantity(obj.array, copy=copy)  # type: ignore (We know it's a UnitsExtensionArray)
-    elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":  # type: ignore (We know it has a dtype)
+    elif isinstance(obj, pd.Series) and isinstance(obj.dtype, UnitsDtype):
+        return as_quantity(obj.array, copy=copy)  # type: ignore # We know it's a UnitsExtensionArray
+    elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":  # type: ignore # We know it has a dtype
         # Note: Timedelta is internally represented as int64
         return u.Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")
     elif is_list_like(obj):
-        obj = list(obj)  # type: ignore (a list-like object can be converted to list)
+        obj = list(obj)  # type: ignore # a list-like object can be converted to list
         copy = False  # Already copied by list()
         if len(obj) == 0:
             return u.Quantity([], "")
@@ -284,7 +283,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             )
 
         if isinstance(unit, str):
-            unit: UnitInstance = u.Unit(unit)
+            unit = u.Unit(unit)
 
         if q.unit.is_unity():
             if unit is not None:
@@ -316,7 +315,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return len(self._value)
 
     def __array__(
-        self, dtype: DtypeObj = object, copy: bool | None = None
+        self, dtype: NpDtype | None = object, copy: bool | None = None
     ) -> np.ndarray:
         """
         Convert implicitly to a numpy array.
@@ -325,7 +324,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         Parameters
         ----------
-        dtype : dtype, default object
+        dtype : dtype-like, default None
             The desired dtype for the array. If not given, will convert to object array containing Quantity objects.
             If given, will convert the numerical values to the given dtype and ignore the unit information.
         copy : bool, default None
@@ -337,6 +336,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             The array representation of the data.
         """
         # Create array depending on dtype
+        if dtype is None:
+            dtype = object
         if dtype == object:  # noqa: E721 (the equality is complex here)
             if copy is False:
                 raise ValueError(
@@ -345,10 +346,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             arr = np.array(list(as_quantity(self)), dtype=object)
             # Converting self first to a Quantity and then to a ndarray requires a copy, so copy flag will be set to True
             copy = True
-        elif dtype:
-            arr = self._value.astype(dtype, copy=copy)
         else:
-            arr = np.asarray(self._value, copy=copy)
+            arr = np.asarray(self._value, dtype=dtype, copy=copy)
 
         # Set writable flag depending on self._readonly and only when no copy was made
         if self._readonly and copy is not True:
@@ -444,7 +443,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def searchsorted(
         self,
-        value: NumpyValueArrayLike | u.Quantity | UnitsExtensionArray,
+        value: NumpyValueArrayLike | ExtensionArray | u.Quantity,
         side: Literal["left", "right"] = "left",
         sorter: NumpySorter | None = None,
     ) -> npt.NDArray[np.intp] | np.intp:
@@ -601,7 +600,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         is_divmod = op_name in ["__divmod__", "__rdivmod__"]
 
         def _binop(self, other):
-            if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
+            if isinstance(other, (pd.Index, pd.Series, pd.DataFrame)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
@@ -625,7 +624,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         op_name = f"__{op.__name__}__"
 
         def _binop(self, other):
-            if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
+            if isinstance(other, (pd.Index, pd.Series, pd.DataFrame)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
