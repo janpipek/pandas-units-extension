@@ -7,7 +7,7 @@ import warnings
 
 from astropy.units import PhysicalType
 from typing_extensions import deprecated  # warnings.deprecated is Python >= 3.13
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, ClassVar
 
 import astropy.units as u
 import numpy as np
@@ -87,8 +87,7 @@ class UnitsDtype(ExtensionDtype):
 
     BASE_NAME: str = "unit"
 
-    type: type = u.Quantity
-    kind: str = "O"
+    type: ClassVar[type] = u.Quantity
 
     _is_numeric: bool = False
     _metadata: tuple[str] = ("unit",)
@@ -283,7 +282,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             )
 
         if isinstance(unit, str):
-            unit: UnitInstance = u.Unit(unit)
+            unit = u.Unit(unit)
 
         if q.unit.is_unity():
             if unit is not None:
