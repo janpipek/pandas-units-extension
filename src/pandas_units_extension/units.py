@@ -42,9 +42,6 @@ if TYPE_CHECKING:
 # In absence of a proper UnitBase class that also includes function units we define our own here
 UnitInstance: TypeAlias = u.UnitBase | u.FunctionUnitBase
 
-# Imperial units enabled by default
-u.imperial.enable()
-
 
 class InvalidUnitConversionError(ValueError):
     """
@@ -113,7 +110,8 @@ class UnitsDtype(ExtensionDtype):
         if not match:
             raise TypeError(f"Cannot construct a 'UnitsDtype' from '{string}'")
         unit_string = match["name"]
-        return cls(u.Unit(unit_string))  # type: ignore[arg-type]
+        with u.imperial.enable():
+            return cls(u.Unit(unit_string))  # type: ignore[arg-type]
 
     def construct_array_type(self) -> type[ExtensionArray]:
         return UnitsExtensionArray
@@ -162,7 +160,8 @@ def convert(
     """
     Convert quantity to a new unit.
 
-    Customized to be a bit more universal than the original quantities.
+    Customized to be a bit more universal than the original quantities by handling
+    imperial units and temperature equivalencies.
 
     Parameters
     ----------
@@ -186,17 +185,18 @@ def convert(
     InvalidUnitConversion
         If the conversion is invalid.
     """
-    try:
-        return q.to(new_unit, equivalencies or [])
-    except u.UnitConversionError:
-        if q.unit.physical_type == "temperature":
-            return q.to(new_unit, u.temperature())
-        else:
-            raise InvalidUnitConversionError(
-                f"Cannot convert unit '{q.unit}' to '{new_unit}'."
-            ) from None
-    except ValueError:
-        raise InvalidUnitError(f"Unit '{new_unit}' does not exist.") from None
+    with u.imperial.enable():
+        try:
+            return q.to(new_unit, equivalencies or [])
+        except u.UnitConversionError:
+            if q.unit.physical_type == "temperature":
+                return q.to(new_unit, u.temperature())
+            else:
+                raise InvalidUnitConversionError(
+                    f"Cannot convert unit '{q.unit}' to '{new_unit}'."
+                ) from None
+        except ValueError:
+            raise InvalidUnitError(f"Unit '{new_unit}' does not exist.") from None
 
 
 def as_quantity(
@@ -234,7 +234,8 @@ def as_quantity(
         if len(obj) == 0:
             return u.Quantity([], "")
         elif all(isinstance(item, str) for item in obj):
-            return u.Quantity([u.Quantity(item) for item in obj])
+            with u.imperial.enable():
+                return u.Quantity([u.Quantity(item) for item in obj])
     if copy and hasattr(obj, "copy"):
         obj = obj.copy()  # type: ignore
     return u.Quantity(obj)
@@ -284,7 +285,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             )
 
         if isinstance(unit, str):
-            unit: UnitInstance = u.Unit(unit)
+            with u.imperial.enable():
+                unit: UnitInstance = u.Unit(unit)
 
         if q.unit.is_unity():
             if unit is not None:

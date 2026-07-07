@@ -707,13 +707,15 @@ class TestVarious(BaseExtensionTests):
     )
     def test_add_new_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
-        s1.at[1] = u.Quantity("1 ft")
+        with u.imperial.enable():
+            s1.at[1] = u.Quantity("1 ft")
         expected = pd.Series(["1.0 m", "0.3048 m"], dtype="unit")
         tm.assert_series_equal(expected, s1)
 
     def test_set_value_with_different_unit(self):
         s1 = pd.Series(["1 m"], dtype="unit")
-        s1[0] = u.Quantity("1 ft")
+        with u.imperial.enable():
+            s1[0] = u.Quantity("1 ft")
         expected = pd.Series(["0.3048 m"], dtype="unit")
         tm.assert_series_equal(expected, s1)
 
@@ -765,3 +767,19 @@ class TestVarious(BaseExtensionTests):
         # We do not check the other case as a copy cannot always be prevented
         if copy:
             assert np.may_share_memory(result, expected) is False
+
+    def test_imperial_units_not_globally_enabled(self):
+        """Test that imperial units are not enabled globally."""
+        with pytest.raises(ValueError, match="'ft' did not parse as unit"):
+            u.Quantity("1 ft")
+
+    def test_imperial_units_in_series(self):
+        """Test that imperial units can be used in a Series."""
+        pd.Series([1, 2, 3], dtype="unit[ft]")
+
+    def test_imperial_units_conversion(self, data):
+        """Test that ExtensionArray can be converted to imperial units."""
+        result = data.to("ft")
+        with u.imperial.enable():
+            expected = UnitsExtensionArray(data.to_quantity().to("ft"))
+        tm.assert_extension_array_equal(result, expected)
