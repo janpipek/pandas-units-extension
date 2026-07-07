@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 import astropy.units as u
 import numpy as np
 import pandas as pd
-from pandas.api.extensions import (
+from pandas.api.extensions import (  # type: ignore[attr-defined] # pandas-stubs not complete
     ExtensionArray,
     ExtensionDtype,
     ExtensionScalarOpsMixin,
@@ -25,7 +25,6 @@ from pandas.api.indexers import check_array_indexer
 from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops
-from pandas.core.dtypes.generic import ABCDataFrame, ABCIndex, ABCSeries
 from pandas.core.indexers import (
     getitem_returns_view,
 )
@@ -200,7 +199,7 @@ def convert(
 
 
 def as_quantity(
-    obj: ut.QuantityLike | UnitsExtensionArray | ABCSeries, copy: bool = True
+    obj: ut.QuantityLike | UnitsExtensionArray | pd.Series, copy: bool = True
 ) -> u.Quantity:
     """
     Convert whatever input to a Quantity.
@@ -223,13 +222,13 @@ def as_quantity(
         return u.Quantity(obj, copy=copy)
     elif isinstance(obj, UnitsExtensionArray):
         return u.Quantity(obj._value, obj._unit, copy=copy)
-    elif isinstance(obj, ABCSeries) and isinstance(obj.dtype, UnitsDtype):
-        return as_quantity(obj.array, copy=copy)  # type: ignore (We know it's a UnitsExtensionArray)
-    elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":  # type: ignore (We know it has a dtype)
+    elif isinstance(obj, pd.Series) and isinstance(obj.dtype, UnitsDtype):
+        return as_quantity(obj.array, copy=copy)  # type: ignore # We know it's a UnitsExtensionArray
+    elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":  # type: ignore # We know it has a dtype
         # Note: Timedelta is internally represented as int64
         return u.Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")
     elif is_list_like(obj):
-        obj = list(obj)  # type: ignore (a list-like object can be converted to list)
+        obj = list(obj)  # type: ignore # a list-like object can be converted to list
         copy = False  # Already copied by list()
         if len(obj) == 0:
             return u.Quantity([], "")
@@ -601,7 +600,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         is_divmod = op_name in ["__divmod__", "__rdivmod__"]
 
         def _binop(self, other):
-            if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
+            if isinstance(other, (pd.Index, pd.Series, pd.DataFrame)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
@@ -625,7 +624,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         op_name = f"__{op.__name__}__"
 
         def _binop(self, other):
-            if isinstance(other, (ABCIndex, ABCSeries, ABCDataFrame)):
+            if isinstance(other, (pd.Index, pd.Series, pd.DataFrame)):
                 # rely on pandas to unbox and dispatch to us
                 return NotImplemented
 
