@@ -672,15 +672,21 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
 
 
 class TestVarious(BaseExtensionTests):
-    def test_concat_compatible(self):
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            pytest.param(1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"),
+            pytest.param(1 * u.imperial.ft, pd.Series(["1 m", "0.3048 m"], dtype="unit"), id="imperial-unit"),
+        ],
+    )
+    def test_concat_compatible(self, value, expected):
         """Test concatenation of Series with compatible units.
 
         Both units are of same physical type (length), expected values are converted to first unit, in this case meter.
         """
         s1 = pd.Series(["1 m"], dtype="unit")
-        s2 = pd.Series(["1 ft"], dtype="unit")
+        s2 = pd.Series([value], dtype="unit")
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
-        expected = pd.Series([1, 0.3048], dtype="unit[m]")
         tm.assert_series_equal(expected, concatenated)
 
     def test_concat_incompatible(self):
@@ -705,18 +711,28 @@ class TestVarious(BaseExtensionTests):
         Version(pd.__version__) < Version("3.1.0"),
         reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
     )
-    def test_add_new_value_with_different_unit(self):
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            pytest.param(1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"),
+            pytest.param(1 * u.imperial.ft, pd.Series(["1 m", "0.3048 m"], dtype="unit"), id="imperial-unit"),
+        ],
+    )
+    def test_add_new_value_with_different_unit(self, value, expected):
         s1 = pd.Series(["1 m"], dtype="unit")
-        with u.imperial.enable():
-            s1.at[1] = u.Quantity("1 ft")
-        expected = pd.Series(["1.0 m", "0.3048 m"], dtype="unit")
+        s1.at[1] = value
         tm.assert_series_equal(expected, s1)
 
-    def test_set_value_with_different_unit(self):
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            pytest.param(1 * u.km, pd.Series(["1000 m"], dtype="unit"), id="standard-unit"),
+            pytest.param(1 * u.imperial.ft, pd.Series(["0.3048 m"], dtype="unit"), id="imperial-unit"),
+        ],
+    )
+    def test_set_value_with_different_unit(self, value, expected):
         s1 = pd.Series(["1 m"], dtype="unit")
-        with u.imperial.enable():
-            s1[0] = u.Quantity("1 ft")
-        expected = pd.Series(["0.3048 m"], dtype="unit")
+        s1[0] = value
         tm.assert_series_equal(expected, s1)
 
     def test_unique(self):
