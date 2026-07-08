@@ -675,8 +675,14 @@ class TestVarious(BaseExtensionTests):
     @pytest.mark.parametrize(
         ("value", "expected"),
         [
-            pytest.param(1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"),
-            pytest.param(1 * u.imperial.ft, pd.Series(["1 m", "0.3048 m"], dtype="unit"), id="imperial-unit"),
+            pytest.param(
+                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"
+            ),
+            pytest.param(
+                1 * u.imperial.ft,
+                pd.Series(["1 m", "0.3048 m"], dtype="unit"),
+                id="imperial-unit",
+            ),
         ],
     )
     def test_concat_compatible(self, value, expected):
@@ -714,8 +720,14 @@ class TestVarious(BaseExtensionTests):
     @pytest.mark.parametrize(
         ("value", "expected"),
         [
-            pytest.param(1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"),
-            pytest.param(1 * u.imperial.ft, pd.Series(["1 m", "0.3048 m"], dtype="unit"), id="imperial-unit"),
+            pytest.param(
+                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"
+            ),
+            pytest.param(
+                1 * u.imperial.ft,
+                pd.Series(["1 m", "0.3048 m"], dtype="unit"),
+                id="imperial-unit",
+            ),
         ],
     )
     def test_add_new_value_with_different_unit(self, value, expected):
@@ -726,8 +738,14 @@ class TestVarious(BaseExtensionTests):
     @pytest.mark.parametrize(
         ("value", "expected"),
         [
-            pytest.param(1 * u.km, pd.Series(["1000 m"], dtype="unit"), id="standard-unit"),
-            pytest.param(1 * u.imperial.ft, pd.Series(["0.3048 m"], dtype="unit"), id="imperial-unit"),
+            pytest.param(
+                1 * u.km, pd.Series(["1000 m"], dtype="unit"), id="standard-unit"
+            ),
+            pytest.param(
+                1 * u.imperial.ft,
+                pd.Series(["0.3048 m"], dtype="unit"),
+                id="imperial-unit",
+            ),
         ],
     )
     def test_set_value_with_different_unit(self, value, expected):
