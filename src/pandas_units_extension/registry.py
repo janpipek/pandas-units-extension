@@ -132,8 +132,10 @@ def infer_from_object(obj: object) -> AstropyTypeSpec | None:
     Returns
     -------
     AstropyTypeSpec or None
-        The first registered spec whose ``native_type`` is a superclass of
-        ``type(obj)``, or ``None`` if none match.
+        The registered spec with the *most specific* ``native_type`` that
+        ``obj`` is an instance of, or ``None`` if none match. Most-specific
+        (rather than first-registered) so that a subclass like ``Angle`` resolves
+        to its own spec rather than the ``Quantity`` one it also matches.
 
     Examples
     --------
@@ -144,7 +146,24 @@ def infer_from_object(obj: object) -> AstropyTypeSpec | None:
     >>> infer_from_object(42) is None
     True
     """
-    return next((spec for spec in _SPECS if isinstance(obj, spec.native_type)), None)
+    matches = [spec for spec in _SPECS if isinstance(obj, spec.native_type)]
+    return _most_specific(matches, "native_type")
+
+
+def _most_specific(matches: list[AstropyTypeSpec], attr: str) -> AstropyTypeSpec | None:
+    """
+    Pick the spec whose ``attr`` class is the most derived among ``matches``.
+
+    Assumes the matching classes form a subclass chain (as astropy's
+    ``Quantity`` -> ``Angle`` -> ``Latitude`` do); returns ``None`` for no matches.
+    """
+    if not matches:
+        return None
+    best = matches[0]
+    for spec in matches[1:]:
+        if issubclass(getattr(spec, attr), getattr(best, attr)):
+            best = spec
+    return best
 
 
 def infer_from_params(params: str) -> "AstropyDtype | None":
@@ -194,8 +213,9 @@ def infer_from_array(arr: "ExtensionArray") -> AstropyTypeSpec | None:
     Returns
     -------
     AstropyTypeSpec or None
-        The first registered spec whose ``array_cls`` ``arr`` is an instance of,
-        or ``None`` if none match.
+        The registered spec with the *most specific* ``array_cls`` that ``arr``
+        is an instance of, or ``None`` if none match (so an
+        ``AngleExtensionArray`` resolves to ``angle``, not ``quantity``).
 
     Examples
     --------
@@ -205,4 +225,5 @@ def infer_from_array(arr: "ExtensionArray") -> AstropyTypeSpec | None:
     >>> infer_from_array(QuantityExtensionArray([1, 2, 3], u.m)).selector
     'quantity'
     """
-    return next((spec for spec in _SPECS if isinstance(arr, spec.array_cls)), None)
+    matches = [spec for spec in _SPECS if isinstance(arr, spec.array_cls)]
+    return _most_specific(matches, "array_cls")

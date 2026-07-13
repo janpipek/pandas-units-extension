@@ -85,15 +85,18 @@ class QuantityDtype(AstropyDtype):
     _is_numeric: bool = False
     _metadata: tuple[str] = ("unit",)
 
+    # The type selector used in the dtype grammar (``astropy{<_selector>}[...]``).
+    _selector: str = "quantity"
+
     unit: UnitInstance | None
 
     def __init__(self, unit: UnitInstance | None = None) -> None:
         self.unit = unit
 
-    @staticmethod
-    def _parse_params(params: str | None) -> "QuantityDtype":
+    @classmethod
+    def _parse_params(cls, params: str | None) -> "QuantityDtype":
         """
-        Build a ``QuantityDtype`` from the ``[params]`` part of a dtype string.
+        Build a dtype from the ``[params]`` part of a dtype string.
 
         Parameters
         ----------
@@ -104,13 +107,15 @@ class QuantityDtype(AstropyDtype):
         Returns
         -------
         QuantityDtype
+            An instance of ``cls`` (so subclasses like ``AngleDtype`` build
+            themselves and apply their own unit validation).
         """
         if params is None:
             unit = None
         else:
             with u.imperial.enable():
                 unit = u.Unit(params)
-        return QuantityDtype(unit)  # type: ignore[arg-type]
+        return cls(unit)  # type: ignore[arg-type]
 
     def construct_array_type(self) -> type[ExtensionArray]:
         return QuantityExtensionArray
@@ -118,8 +123,8 @@ class QuantityDtype(AstropyDtype):
     @property
     def name(self) -> str:
         if self.unit is None:
-            return "astropy{quantity}"
-        return f"astropy{{quantity}}[{self.unit.to_string()}]"
+            return f"astropy{{{self._selector}}}"
+        return f"astropy{{{self._selector}}}[{self.unit.to_string()}]"
 
     @property
     def na_value(self) -> u.Quantity:
@@ -275,6 +280,19 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
     <Quantity [1000., 2000., 3000.] mm>
     """
 
+    # The dtype class this array uses; subclasses override to attach their own dtype.
+    _dtype_cls: "type[QuantityDtype]" = QuantityDtype
+
+    def _wrap_result(self, quantity: u.Quantity) -> "QuantityExtensionArray":
+        """
+        Wrap a result quantity back into an extension array.
+
+        The base implementation preserves the array's own type. Subclasses (e.g.
+        ``AngleExtensionArray``) override this to degrade to a more general type
+        when the result leaves their physical domain (e.g. ``angle / angle``).
+        """
+        return type(self)(quantity)
+
     # Adapted from MaskedArray to create new objects of QuantityExtensionArray for views and slices
     @classmethod
     def _simple_new(
@@ -331,7 +349,7 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
                     "Could not convert units in initialization of QuantityExtensionArray: "
                 ) from e
 
-        self._dtype: QuantityDtype = QuantityDtype(q.unit)
+        self._dtype: QuantityDtype = self._dtype_cls(q.unit)
         self._value: np.ndarray[np.float64] = q.value.astype(float)
 
     @property
@@ -435,7 +453,7 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
         # Note: copy is ignored as we always convert the strings
         values: list[u.Quantity] = [u.Quantity(s) for s in strings]
         unit: UnitInstance = dtype.unit if dtype else None
-        return QuantityExtensionArray(values, unit)
+        return cls(values, unit)
 
     @classmethod
     def _from_scalars(cls, scalars, *, dtype=None) -> "QuantityExtensionArray":
@@ -523,7 +541,7 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
         """
         q: u.Quantity = self.to_quantity()
         new_data: u.Quantity = convert(q, new_unit, equivalencies)
-        return QuantityExtensionArray(new_data)
+        return self._wrap_result(new_data)
 
     def astype(self, dtype, copy: bool = True):
         def _as_units_dtype(unit: UnitInstance) -> "QuantityExtensionArray":
@@ -616,19 +634,19 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
         values = take(
             self._value, indices, allow_fill=allow_fill, fill_value=fill_value
         )
-        return QuantityExtensionArray._simple_new(values, self._dtype)
+        return self._simple_new(values, self._dtype)
 
     @classmethod
     def _concat_same_type(cls, to_concat) -> "QuantityExtensionArray":
         if len(to_concat) == 0:
-            return QuantityExtensionArray([])
+            return cls([])
         elif len(to_concat) == 1:
             return to_concat[0]
         elif len(set(item._unit for item in to_concat)) != 1:
             # This actually never happens but left here for completeness.
             raise ValueError("Not all concatenated arrays have the same units.")
         else:
-            return QuantityExtensionArray(
+            return cls(
                 np.concatenate([item._value for item in to_concat]), to_concat[0]._unit
             )
 
@@ -661,8 +679,8 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
 
             if is_divmod:
                 # divmod returns a tuple of results
-                return cls(result_q[0]), cls(result_q[1])
-            return cls(result_q)
+                return self._wrap_result(result_q[0]), self._wrap_result(result_q[1])
+            return self._wrap_result(result_q)
 
         return set_function_name(_binop, op_name, cls)
 
@@ -698,7 +716,7 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
         return set_function_name(_binop, op_name, cls)
 
     def copy(self) -> "QuantityExtensionArray":
-        return QuantityExtensionArray._simple_new(self._value.copy(), self.dtype)
+        return self._simple_new(self._value.copy(), self.dtype)
 
     def _reduce(
         self, name: str, skipna: bool = True, keepdims: bool = False, **kwargs
@@ -746,12 +764,12 @@ class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
 
     @classmethod
     def _from_factorized(cls, values, original) -> "QuantityExtensionArray":
-        return QuantityExtensionArray(values, original.dtype.unit)
+        return cls(values, original.dtype.unit)
 
     def value_counts(self, dropna=True) -> pd.Series:
         # Units preserved in the result index
         result = pd.Index(self._value).value_counts(dropna=dropna)
-        result_index = QuantityExtensionArray(result.index, self.dtype.unit)
+        result_index = type(self)(result.index, self.dtype.unit)
         result.index = result_index
         return result
 

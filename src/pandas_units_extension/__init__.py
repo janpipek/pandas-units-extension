@@ -2,10 +2,10 @@
 Extension pandas dtypes and arrays for astropy objects.
 
 The package exposes an ``astropy`` umbrella dtype and accessor. Concrete types
-are selected with the ``astropy{<type>}[<params>]`` grammar; currently the only
-type is ``quantity`` (an astropy :class:`~astropy.units.Quantity`). The selector
-may be omitted (``astropy[<params>]``) when the type can be inferred from the
-parameters.
+are selected with the ``astropy{<type>}[<params>]`` grammar; the available types
+are ``quantity`` (an astropy :class:`~astropy.units.Quantity`) and ``angle`` (an
+astropy :class:`~astropy.coordinates.Angle`). The selector may be omitted
+(``astropy[<params>]``) when the type can be inferred from the parameters.
 
 Examples
 --------
@@ -39,6 +39,9 @@ __all__ = [
     "QuantityDtype",
     "QuantityExtensionArray",
     "QuantitySeriesAccessor",
+    "AngleDtype",
+    "AngleExtensionArray",
+    "AngleSeriesAccessor",
     "from_astropy",
     "InvalidUnitError",
     "InvalidUnitConversionError",
@@ -59,5 +62,10 @@ from .quantity import (
     QuantityDtype,
     QuantityExtensionArray,
     QuantitySeriesAccessor,
+)
+from .angle import (
+    AngleDtype,
+    AngleExtensionArray,
+    AngleSeriesAccessor,
 )
 from .version import __version__

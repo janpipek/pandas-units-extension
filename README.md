@@ -22,12 +22,13 @@ pip install -e .
 ## Examples
 
 Astropy-backed columns use the `astropy{<type>}[<params>]` dtype grammar. The
-only type currently available is `quantity` (an astropy `Quantity`), so a
-column of quantities is written `astropy{quantity}[<unit>]`. You can drop the
-selector and let the type be inferred from the parameters — `astropy[<unit>]`
-is equivalent as long as a single registered type can parse them. The matching
-`.astropy` accessor exposes the type-specific methods (`to`, `to_si`, `unit`,
-…) plus the common `to_astropy` / `to_table`.
+available types are `quantity` (an astropy `Quantity`) and `angle` (an astropy
+`Angle`), so columns are written `astropy{quantity}[<unit>]` /
+`astropy{angle}[<angular unit>]`. You can drop the selector and let the type be
+inferred from the parameters — `astropy[<unit>]` is equivalent as long as a
+single registered type can parse them. The matching `.astropy` accessor exposes
+the type-specific methods (`to`, `to_si`, `unit`, and — for angles — `wrap_at`,
+`dms`/`hms`, `is_within_bounds`) plus the common `to_astropy` / `to_table`.
 
 ```python
 >>> import pandas as pd
