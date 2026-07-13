@@ -1,6 +1,6 @@
 [project]
 name = "pandas-units-extension"
-version = "0.2.1"
+version = "0.3.0"
 description = "Extension pandas dtype and array for physical units and quantities from astropy."
 readme = "README.md"
 license = { text = "MIT" }
@@ -13,11 +13,14 @@ dependencies = [
     "pandas>=3.0",
     "astropy>=5.1.1",
     "packaging>=22",
-    "typing-extensions>=4.5.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/janpipek/pandas-units-extension"
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"
+testpaths = ["src", "tests"]
 
 [build-system]
 requires = ["hatchling"]

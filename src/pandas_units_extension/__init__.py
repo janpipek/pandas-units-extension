@@ -1,45 +1,63 @@
 """
-Extension pandas dtype and array for physical units.
+Extension pandas dtypes and arrays for astropy objects.
 
-It is based on astropy Quantities.
+The package exposes an ``astropy`` umbrella dtype and accessor. Concrete types
+are selected with the ``astropy{<type>}[<params>]`` grammar; currently the only
+type is ``quantity`` (an astropy :class:`~astropy.units.Quantity`). The selector
+may be omitted (``astropy[<params>]``) when the type can be inferred from the
+parameters.
 
 Examples
 --------
-    >>> pd.Series([1, 2, 3], dtype="unit[m]")
-    0   1.0 m
-    1   2.0 m
-    2   3.0 m
-    dtype: unit[m]
+    >>> import astropy.units as u
+    >>> import pandas as pd
+    >>> import pandas_units_extension  # registers the dtypes and accessors
+    >>> pd.Series([1, 2, 3], dtype="astropy{quantity}[m]")
+    0    1.0 m
+    1    2.0 m
+    2    3.0 m
+    dtype: astropy{quantity}[m]
 
-    >>> pd.Series([123, 21], dtype="unit[km]") / pd.Series([1, 3], dtype="unit[hour]")
-    0   123.0 km / h
-    1     7.0 km / h
-    dtype: unit[km / h]
+    >>> (
+    ...     pd.Series([123, 21], dtype="astropy{quantity}[km]")
+    ...     / pd.Series([1, 3], dtype="astropy{quantity}[hour]")
+    ... )
+    0    123.0 km / h
+    1      7.0 km / h
+    dtype: astropy{quantity}[km / h]
+
+    >>> pd.Series([1 * u.m, 2 * u.m], dtype="astropy")  # type inferred from data
+    0    1.0 m
+    1    2.0 m
+    dtype: astropy{quantity}[m]
 """
 
 __all__ = [
-    "as_quantity",
-    "convert",
+    "AstropyDtype",
+    "AstropyExtensionArray",
+    "AstropyDataFrameAccessor",
+    "QuantityDtype",
+    "QuantityExtensionArray",
+    "QuantitySeriesAccessor",
+    "from_astropy",
     "InvalidUnitError",
     "InvalidUnitConversionError",
-    "Quantity",
-    "UnitsDtype",
-    "UnitsExtensionArray",
-    "UnitsSeriesAccessor",
-    "UnitsDataFrameAccessor",
-    "Unit",
     "__version__",
 ]
-from astropy.units import Quantity, Unit
 
-from .units import (
-    InvalidUnitError,
+from .base import (
+    AstropyDataFrameAccessor,
+    AstropyDtype,
+    AstropyExtensionArray,
+    from_astropy,
+)
+
+# Importing the concrete types registers them with the registry.
+from .quantity import (
     InvalidUnitConversionError,
-    UnitsDataFrameAccessor,
-    UnitsDtype,
-    UnitsExtensionArray,
-    UnitsSeriesAccessor,
-    as_quantity,
-    convert,
+    InvalidUnitError,
+    QuantityDtype,
+    QuantityExtensionArray,
+    QuantitySeriesAccessor,
 )
 from .version import __version__

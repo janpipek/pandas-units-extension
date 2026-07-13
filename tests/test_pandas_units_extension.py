@@ -1,5 +1,4 @@
 # ruff: disable[F401,F811]
-from __future__ import annotations
 
 import operator
 
@@ -25,11 +24,11 @@ from pandas.tests.extension.conftest import (
 
 from pandas_units_extension import (
     InvalidUnitConversionError,
-    UnitsDtype,
-    UnitsExtensionArray,
-    UnitsSeriesAccessor,
-    as_quantity,
+    QuantityDtype,
+    QuantityExtensionArray,
+    QuantitySeriesAccessor,
 )
+from pandas_units_extension.quantity import as_quantity
 
 _all_arithmetic_operators: list[str] = [
     "__add__",
@@ -87,12 +86,12 @@ def using_nan_is_na(request):
 
 @pytest.fixture
 def data():
-    return UnitsExtensionArray([1, 2] + 8 * [3], u.m)
+    return QuantityExtensionArray([1, 2] + 8 * [3], u.m)
 
 
 @pytest.fixture()
 def data_for_twos():
-    return UnitsExtensionArray([2] * 10, u.m)
+    return QuantityExtensionArray([2] * 10, u.m)
 
 
 @pytest.fixture
@@ -100,12 +99,12 @@ def data_missing():
     """
     Length-2 array with [NA, Valid].
     """
-    return UnitsExtensionArray([np.nan, 1] * u.m)
+    return QuantityExtensionArray([np.nan, 1] * u.m)
 
 
 @pytest.fixture
 def simple_data():
-    return UnitsExtensionArray([1, 2, 3], u.m)
+    return QuantityExtensionArray([1, 2, 3], u.m)
 
 
 @pytest.fixture
@@ -131,7 +130,7 @@ def all_data(request, data, data_missing):
 
 @pytest.fixture
 def dtype():
-    return UnitsDtype(u.m)
+    return QuantityDtype(u.m)
 
 
 @pytest.fixture
@@ -154,7 +153,7 @@ def na_value():
 
 @pytest.fixture
 def data_for_grouping():
-    return UnitsExtensionArray([2, 2, np.nan, np.nan, 1, 1, 2, 3], u.g)
+    return QuantityExtensionArray([2, 2, np.nan, np.nan, 1, 1, 2, 3], u.g)
 
 
 @pytest.fixture
@@ -165,7 +164,7 @@ def data_for_sorting():
     This should be three items [B, C, A] with
     A < B < C
     """
-    return UnitsExtensionArray([2, 3, 1], u.m)
+    return QuantityExtensionArray([2, 3, 1], u.m)
 
 
 @pytest.fixture
@@ -176,7 +175,7 @@ def data_missing_for_sorting():
     This should be three items [B, NA, A] with
     A < B and NA missing.
     """
-    return UnitsExtensionArray([3, np.nan, 1], u.m)
+    return QuantityExtensionArray([3, np.nan, 1], u.m)
 
 
 @pytest.fixture
@@ -224,36 +223,41 @@ class TestConstructors(base.BaseConstructorsTests):
 
 class TestCasting(base.BaseCastingTests):
     def test_compatible_conversion(self):
-        s = pd.Series([3, 4], dtype="unit[m]")
-        result = s.astype("unit[cm]")
-        expected = pd.Series([300, 400], dtype="unit[cm]")
+        s = pd.Series([3, 4], dtype="astropy{quantity}[m]")
+        result = s.astype("astropy{quantity}[cm]")
+        expected = pd.Series([300, 400], dtype="astropy{quantity}[cm]")
         tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("generic", [False, True])
     def test_convert_from_object(self, generic):
         s = pd.Series([2, 3] * u.m)
-        dtype = "unit" if generic else "unit[m]"
+        # Bare "astropy" works here: the object data are Quantities, so the type
+        # is inferred. String data (see test_series_from_string_list) needs the
+        # explicit "astropy{quantity}" form.
+        dtype = "astropy" if generic else "astropy{quantity}[m]"
         result = s.astype(dtype)
-        expected = pd.Series([2, 3], dtype="unit[m]")
+        expected = pd.Series([2, 3], dtype="astropy{quantity}[m]")
         tm.assert_series_equal(result, expected)
 
     def test_convert_from_timedelta(self):
         s = pd.Series(pd.timedelta_range(0, periods=3, freq="h"))
-        result = s.astype("unit")
-        expected = pd.Series([0, 3600, 7200], dtype="unit[s]")
+        result = s.astype("astropy{quantity}")
+        expected = pd.Series([0, 3600, 7200], dtype="astropy{quantity}[s]")
         tm.assert_series_equal(result, expected)
 
     def test_astype_timedelta(self):
-        s = pd.Series([0, 1, 2], dtype="unit[h]")
+        s = pd.Series([0, 1, 2], dtype="astropy{quantity}[h]")
         result = s.astype("timedelta64[ns]")
         expected = pd.Series(pd.timedelta_range(0, periods=3, freq="h"))
         tm.assert_series_equal(result, expected)
 
 
 class TestDtype(base.BaseDtypeTests):
-    @pytest.mark.parametrize(("f", "expected"), [(str, "unit"), (repr, "UnitsDtype()")])
+    @pytest.mark.parametrize(
+        ("f", "expected"), [(str, "astropy{quantity}"), (repr, "QuantityDtype()")]
+    )
     def test_str_and_repr_without_unit(self, f, expected):
-        dtype = UnitsDtype()
+        dtype = QuantityDtype()
         assert f(dtype) == expected
 
 
@@ -266,7 +270,7 @@ class TestGroupBy(base.BaseGroupbyTests):
         return super().test_groupby_agg_extension(data_for_grouping)
 
     @pytest.mark.xfail(
-        reason="The UnitsDtype is non of the dtypes for which the test expects a successful grouping, therefore no TypeError is raised",
+        reason="The QuantityDtype is non of the dtypes for which the test expects a successful grouping, therefore no TypeError is raised",
     )
     def test_in_numeric_groupby(self, data_for_grouping):
         return super().test_in_numeric_groupby(data_for_grouping)
@@ -274,10 +278,10 @@ class TestGroupBy(base.BaseGroupbyTests):
 
 class TestGetitem(base.BaseGetitemTests):
     def test_unitless(self):
-        series = pd.Series([0, 1, 2], dtype="unit[]")
+        series = pd.Series([0, 1, 2], dtype="astropy{quantity}[]")
         new_index = [2, 4]
         result = series.reindex(new_index)
-        expected = pd.Series([2, np.nan], dtype="unit[]", index=new_index)
+        expected = pd.Series([2, np.nan], dtype="astropy{quantity}[]", index=new_index)
         tm.assert_series_equal(result, expected)
 
 
@@ -287,7 +291,7 @@ class TestInterface(base.BaseInterfaceTests):
         # data_missing is of dtype unit[m] so `np.nan * u.m` should be in it
         assert (np.nan * u.m) in data_missing
 
-        # UnitsExtensionArray is flexible in regards to the unit of a na-value
+        # QuantityExtensionArray is flexible in regards to the unit of a na-value
         # for __contains__() as long as the physical type is the same (here length),
         # so `np.nan * u.cm` should also be in data_missing
         assert (np.nan * u.cm) in data_missing
@@ -298,7 +302,7 @@ class TestInterface(base.BaseInterfaceTests):
 
 class TestMethods(base.BaseMethodsTests):
     def test_searchsorted_unit_aware(self, data_for_sorting, as_series):
-        arr: UnitsExtensionArray = UnitsExtensionArray([1, 2, 3], u.m)
+        arr: QuantityExtensionArray = QuantityExtensionArray([1, 2, 3], u.m)
 
         if as_series:
             arr = pd.Series(arr)
@@ -328,11 +332,11 @@ class TestMethods(base.BaseMethodsTests):
     )
     def test_value_counts(self, dropna, expected_index, expected_values):
         # Custom test required, as the parent removes the units info
-        s = pd.Series([1, 1, 2, np.nan], dtype="unit[m]")
+        s = pd.Series([1, 1, 2, np.nan], dtype="astropy{quantity}[m]")
         result = s.value_counts(dropna=dropna)
         expected = pd.Series(
             expected_values,
-            index=UnitsExtensionArray(expected_index, unit=u.m),
+            index=QuantityExtensionArray(expected_index, unit=u.m),
             dtype="int64",
             name="count",
         )
@@ -352,7 +356,7 @@ class TestReduce(base.BaseReduceTests):
         # Besides `var` all reductions retain the same unit so same dtype.
         # However `var` returns a squared unit and the new expected dtype is calculated and returned
         if op_name in {"var"}:
-            return UnitsDtype(arr._unit**2)
+            return QuantityDtype(arr._unit**2)
         return arr.dtype
 
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
@@ -412,9 +416,11 @@ class TestParsing(base.BaseParsingTests):
     @pytest.mark.parametrize("generic", [False, True])
     def test_series_from_string_list(self, generic):
         source = ["1 m", "2 m"]
-        dtype = "unit" if generic else "unit[m]"
+        # String data carries no astropy type info, so the generic form must be
+        # the explicit "astropy{quantity}" (bare "astropy" would raise).
+        dtype = "astropy{quantity}" if generic else "astropy{quantity}[m]"
         result = pd.Series(source, dtype=dtype)
-        expected = pd.Series([1, 2], dtype="unit[m]")
+        expected = pd.Series([1, 2], dtype="astropy{quantity}[m]")
         tm.assert_series_equal(result, expected)
 
 
@@ -429,7 +435,7 @@ class TestPrinting(base.BasePrintingTests):
 class TestQuantile:
     # Regression test for issue #1
     def test_returns_correct_unit(self):
-        source = pd.Series([1, 2, 3], dtype="unit[m]")
+        source = pd.Series([1, 2, 3], dtype="astropy{quantity}[m]")
         result = source.quantile(0.5)
         assert result == 2.0 * u.m
 
@@ -443,24 +449,24 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     def test_arith_series_with_scalar_pow(self, data):
         s = pd.Series(data)
         result = s**2
-        expected = pd.Series([1, 4] + 8 * [9], dtype="unit[m^2]")
+        expected = pd.Series([1, 4] + 8 * [9], dtype="astropy{quantity}[m^2]")
         tm.assert_series_equal(result, expected)
 
         result2 = s ** (-2)
-        expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="unit[m^(-2)]")
+        expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="astropy{quantity}[m^(-2)]")
         tm.assert_series_equal(result2, expected2)
 
     def test_add_incompatible_units(self):
-        s1 = pd.Series([1, 2, 3, 4], dtype="unit[kg]")
-        s2 = pd.Series([3, 4, 3, 4], dtype="unit[m]")
+        s1 = pd.Series([1, 2, 3, 4], dtype="astropy{quantity}[kg]")
+        s2 = pd.Series([3, 4, 3, 4], dtype="astropy{quantity}[m]")
         with pytest.raises(u.UnitConversionError):
             s1 + s2
 
     def test_add_compatible_units(self):
-        s1 = pd.Series([1, 2, 3, 4], dtype="unit[m]")
-        s2 = pd.Series([3, 4, 3, 4], dtype="unit[km]")
+        s1 = pd.Series([1, 2, 3, 4], dtype="astropy{quantity}[m]")
+        s2 = pd.Series([3, 4, 3, 4], dtype="astropy{quantity}[km]")
 
-        expected = pd.Series([3001, 4002, 3003, 4004], dtype="unit[m]")
+        expected = pd.Series([3001, 4002, 3003, 4004], dtype="astropy{quantity}[m]")
         result = s1 + s2
         tm.assert_series_equal(expected, result)
 
@@ -473,10 +479,10 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     @pytest.mark.parametrize(
         ("op", "expected_dtype"),
         [
-            (operator.mul, "unit[m^2]"),
-            (roperator.rmul, "unit[m^2]"),
-            (operator.truediv, "unit[]"),
-            (roperator.rtruediv, "unit[]"),
+            (operator.mul, "astropy{quantity}[m^2]"),
+            (roperator.rmul, "astropy{quantity}[m^2]"),
+            (operator.truediv, "astropy{quantity}[]"),
+            (roperator.rtruediv, "astropy{quantity}[]"),
         ],
     )
     def test_mul_div_with_unit(self, data, op, expected_dtype):
@@ -507,9 +513,9 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         return super().test_compare_scalar(data, op)
 
     def test_comparable_units(self):
-        s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
-        s2 = pd.Series([1, 2, 3], dtype="unit[km]")
-        s3 = pd.Series([1, 3, 0], dtype="unit[km]")
+        s1 = pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[m]")
+        s2 = pd.Series([1, 2, 3], dtype="astropy{quantity}[km]")
+        s3 = pd.Series([1, 3, 0], dtype="astropy{quantity}[km]")
 
         assert all(s1 == s2)
 
@@ -520,12 +526,12 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "other",
         [
-            pytest.param(pd.Series([270, 270, 270], dtype="unit[K]"), id="series"),
+            pytest.param(pd.Series([270, 270, 270], dtype="astropy{quantity}[K]"), id="series"),
             pytest.param(270 * u.K, id="value"),
         ],
     )
     def test_temperature_inequality(self, other):
-        s = pd.Series([0, -10, 10], dtype="unit[deg_C]")
+        s = pd.Series([0, -10, 10], dtype="astropy{quantity}[deg_C]")
 
         result = s < other
         expected = pd.Series([False, True, False])
@@ -534,19 +540,19 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "other",
         [
-            pytest.param(pd.Series([273.15, 274, 0], dtype="unit[K]"), id="series"),
+            pytest.param(pd.Series([273.15, 274, 0], dtype="astropy{quantity}[K]"), id="series"),
             pytest.param(32 * u.imperial.deg_F, id="value"),
         ],
     )
     def test_temperature_equality(self, other):
-        s = pd.Series([0, -10, 10], dtype="unit[deg_C]")
+        s = pd.Series([0, -10, 10], dtype="astropy{quantity}[deg_C]")
         result = s == other
         expected = pd.Series([True, False, False])
         tm.assert_series_equal(expected, result)
 
     def test_incomparable_units(self, ordering_comparison_op):
-        s1 = pd.Series([1000, 2000, 3000], dtype="unit[m]")
-        s2 = pd.Series([1000, 2000, 3000], dtype="unit[s]")
+        s1 = pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[m]")
+        s2 = pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[s]")
 
         with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(s1, s2)
@@ -559,7 +565,7 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
         ],
     )
     def test_with_incompatible_non_units(self, ordering_comparison_op, other):
-        s = pd.Series([1000, 2000, 3000], dtype="unit[m]")
+        s = pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[m]")
         with pytest.raises(InvalidUnitConversionError):
             ordering_comparison_op(s, other)
         with pytest.raises(InvalidUnitConversionError):
@@ -574,19 +580,19 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
             pytest.param(1 * u.m, pd.Series([True, False]), id="quantity"),
             pytest.param(pd.Series([1, 2]), pd.Series([False, False]), id="series"),
             pytest.param(
-                pd.Series([100, 50], dtype="unit[cm]"),
+                pd.Series([100, 50], dtype="astropy{quantity}[cm]"),
                 pd.Series([True, False]),
                 id="series-with-compatible-unit",
             ),
             pytest.param(
-                pd.Series([1, 2], dtype="unit[kg]"),
+                pd.Series([1, 2], dtype="astropy{quantity}[kg]"),
                 pd.Series([False, False]),
                 id="series-with-incompatible-unit",
             ),
         ],
     )
     def test_eq_ne(self, other, expected_equal, equality_comparison_op):
-        s = pd.Series([1, 2], dtype="unit[m]")
+        s = pd.Series([1, 2], dtype="astropy{quantity}[m]")
         if equality_comparison_op == operator.eq:
             expected = expected_equal
         else:
@@ -598,58 +604,58 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 class TestRepr:
     def test_repr(self, simple_data):
         expected: str = (
-            "<UnitsExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: unit[m]"
+            "<QuantityExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: astropy{quantity}[m]"
         )
         assert expected == repr(simple_data)
 
     def test_series_repr(self, simple_data):
-        expected: str = "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: unit[m]"
+        expected: str = "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: astropy{quantity}[m]"
         assert expected == repr(pd.Series(simple_data))
 
 
-class TestUnitsSeriesAccessor(BaseOpsUtil):
+class TestQuantitySeriesAccessor(BaseOpsUtil):
     def test_init(self, simple_data):
         s = pd.Series(simple_data)
-        assert isinstance(s.units, UnitsSeriesAccessor)
+        assert isinstance(s.astropy, QuantitySeriesAccessor)
 
     def test_invalid_type(self):
         s = pd.Series([1, 2, 3])
         with pytest.raises(AttributeError):
-            _ = s.units
+            _ = s.astropy
 
     def test_to(self, simple_data):
         s = pd.Series(simple_data)
-        result = s.units.to("mm")
-        expected = pd.Series([1000, 2000, 3000], dtype="unit[mm]")
+        result = s.astropy.to("mm")
+        expected = pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[mm]")
         tm.assert_series_equal(result, expected)
 
     def test_to_quantity(self, simple_data):
         s = pd.Series(simple_data)
-        result = s.units.to_quantity()
+        result = s.astropy.to_quantity()
         expected = u.Quantity([1, 2, 3], u.m)
         assert isinstance(result, u.Quantity)
         assert (result == expected).all()
 
     def test_unit(self, simple_data):
         s = pd.Series(simple_data)
-        assert s.units.unit == u.m
+        assert s.astropy.unit == u.m
 
     def test_to_si(self):
-        s = pd.Series([1, 2, 3], dtype="unit[km]")
-        result = s.units.to_si()
-        expected = pd.Series([1000, 2000, 3000], dtype="unit[m]")
+        s = pd.Series([1, 2, 3], dtype="astropy{quantity}[km]")
+        result = s.astropy.to_si()
+        expected = pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[m]")
         tm.assert_series_equal(result, expected)
 
     def test_to_si_composite_unit(self):
-        s = pd.Series([1, 2, 3], dtype="unit[km/h]")
-        result = s.units.to_si()
-        expected = pd.Series([1000 / 3600, 2000 / 3600, 3000 / 3600], dtype="unit[m/s]")
+        s = pd.Series([1, 2, 3], dtype="astropy{quantity}[km/h]")
+        result = s.astropy.to_si()
+        expected = pd.Series([1000 / 3600, 2000 / 3600, 3000 / 3600], dtype="astropy{quantity}[m/s]")
         tm.assert_series_equal(result, expected)
 
     def test_temperature(self):
-        s = pd.Series([0, 100], dtype="unit[deg_C]")
-        s_f = s.units.to("deg_F")
-        s_f_expected = pd.Series([32, 212], dtype="unit[deg_F]")
+        s = pd.Series([0, 100], dtype="astropy{quantity}[deg_C]")
+        s_f = s.astropy.to("deg_F")
+        s_f_expected = pd.Series([32, 212], dtype="astropy{quantity}[deg_F]")
         tm.assert_series_equal(s_f, s_f_expected)
 
 
@@ -657,15 +663,15 @@ class TestUnitsDataFrameAccessor(BaseOpsUtil):
     def test_df_to_si(self):
         df = pd.DataFrame(
             {
-                "a": pd.Series([1, 2, 3], dtype="unit[km]"),
-                "b": pd.Series([2, 3, 4], dtype="unit[hour]"),
+                "a": pd.Series([1, 2, 3], dtype="astropy{quantity}[km]"),
+                "b": pd.Series([2, 3, 4], dtype="astropy{quantity}[hour]"),
             }
         )
-        result = df.units.to_si()
+        result = df.astropy.to_si()
         expected = pd.DataFrame(
             {
-                "a": pd.Series([1000, 2000, 3000], dtype="unit[m]"),
-                "b": pd.Series([7200, 10800, 14400], dtype="unit[s]"),
+                "a": pd.Series([1000, 2000, 3000], dtype="astropy{quantity}[m]"),
+                "b": pd.Series([7200, 10800, 14400], dtype="astropy{quantity}[s]"),
             }
         )
         tm.assert_frame_equal(result, expected)
@@ -676,11 +682,11 @@ class TestVarious(BaseExtensionTests):
         ("value", "expected"),
         [
             pytest.param(
-                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"
+                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="astropy{quantity}"), id="standard-unit"
             ),
             pytest.param(
                 1 * u.imperial.ft,
-                pd.Series(["1 m", "0.3048 m"], dtype="unit"),
+                pd.Series(["1 m", "0.3048 m"], dtype="astropy{quantity}"),
                 id="imperial-unit",
             ),
         ],
@@ -690,8 +696,8 @@ class TestVarious(BaseExtensionTests):
 
         Both units are of same physical type (length), expected values are converted to first unit, in this case meter.
         """
-        s1 = pd.Series(["1 m"], dtype="unit")
-        s2 = pd.Series([value], dtype="unit")
+        s1 = pd.Series(["1 m"], dtype="astropy{quantity}")
+        s2 = pd.Series([value], dtype="astropy{quantity}")
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
         tm.assert_series_equal(expected, concatenated)
 
@@ -700,14 +706,14 @@ class TestVarious(BaseExtensionTests):
 
         Both units are of different physical types (length vs speed), no conversion is done and dtype should be object.
         """
-        s1 = pd.Series(["1 m"], dtype="unit")
-        s2 = pd.Series(["1 m/s"], dtype="unit")
+        s1 = pd.Series(["1 m"], dtype="astropy{quantity}")
+        s2 = pd.Series(["1 m/s"], dtype="astropy{quantity}")
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
         expected = pd.Series([u.Quantity("1 m"), u.Quantity("1 m/s")], dtype=object)
         tm.assert_series_equal(expected, concatenated)
 
     def test_concat_no_unit(self):
-        s1 = pd.Series(["1 m"], dtype="unit")
+        s1 = pd.Series(["1 m"], dtype="astropy{quantity}")
         s2 = pd.Series([2, 3])
         concatenated = pd.concat([s1, s2]).reset_index(drop=True)
         expected = pd.Series([u.Quantity("1 m"), 2, 3], dtype=object)
@@ -721,17 +727,17 @@ class TestVarious(BaseExtensionTests):
         ("value", "expected"),
         [
             pytest.param(
-                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="unit"), id="standard-unit"
+                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="astropy{quantity}"), id="standard-unit"
             ),
             pytest.param(
                 1 * u.imperial.ft,
-                pd.Series(["1 m", "0.3048 m"], dtype="unit"),
+                pd.Series(["1 m", "0.3048 m"], dtype="astropy{quantity}"),
                 id="imperial-unit",
             ),
         ],
     )
     def test_add_new_value_with_different_unit(self, value, expected):
-        s1 = pd.Series(["1 m"], dtype="unit")
+        s1 = pd.Series(["1 m"], dtype="astropy{quantity}")
         s1.at[1] = value
         tm.assert_series_equal(expected, s1)
 
@@ -739,24 +745,24 @@ class TestVarious(BaseExtensionTests):
         ("value", "expected"),
         [
             pytest.param(
-                1 * u.km, pd.Series(["1000 m"], dtype="unit"), id="standard-unit"
+                1 * u.km, pd.Series(["1000 m"], dtype="astropy{quantity}"), id="standard-unit"
             ),
             pytest.param(
                 1 * u.imperial.ft,
-                pd.Series(["0.3048 m"], dtype="unit"),
+                pd.Series(["0.3048 m"], dtype="astropy{quantity}"),
                 id="imperial-unit",
             ),
         ],
     )
     def test_set_value_with_different_unit(self, value, expected):
-        s1 = pd.Series(["1 m"], dtype="unit")
+        s1 = pd.Series(["1 m"], dtype="astropy{quantity}")
         s1[0] = value
         tm.assert_series_equal(expected, s1)
 
     def test_unique(self):
-        s = pd.Series([1, np.nan, np.nan], dtype="unit[m]")
+        s = pd.Series([1, np.nan, np.nan], dtype="astropy{quantity}[m]")
         unique = s.unique()
-        expected = UnitsExtensionArray([1, np.nan], unit="m")
+        expected = QuantityExtensionArray([1, np.nan], unit="m")
         assert unique._unit == expected._unit
         np.testing.assert_equal(expected._value, unique._value)
 
@@ -765,12 +771,12 @@ class TestVarious(BaseExtensionTests):
         [
             pytest.param(1 * u.m, u.Quantity(1, u.m), id="Quantity"),
             pytest.param(
-                UnitsExtensionArray([1, 2] * u.m),
+                QuantityExtensionArray([1, 2] * u.m),
                 u.Quantity([1, 2], u.m),
-                id="UnitsExtensionArray",
+                id="QuantityExtensionArray",
             ),
             pytest.param(
-                pd.Series([1, 2], dtype="unit[m]"), u.Quantity([1, 2], u.m), id="Series"
+                pd.Series([1, 2], dtype="astropy{quantity}[m]"), u.Quantity([1, 2], u.m), id="Series"
             ),
             pytest.param(
                 pd.Series([1e9, 2e9], dtype="timedelta64[ns]"),
@@ -809,13 +815,13 @@ class TestVarious(BaseExtensionTests):
 
     def test_imperial_units_in_series(self):
         """Test that imperial units can be used in a Series."""
-        pd.Series([1, 2, 3], dtype="unit[ft]")
+        pd.Series([1, 2, 3], dtype="astropy{quantity}[ft]")
 
     def test_imperial_units_conversion(self, data):
         """Test that ExtensionArray can be converted to imperial units."""
         result = data.to("ft")
         with u.imperial.enable():
-            expected = UnitsExtensionArray(data.to_quantity().to("ft"))
+            expected = QuantityExtensionArray(data.to_quantity().to("ft"))
         tm.assert_extension_array_equal(result, expected)
 
 
