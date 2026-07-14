@@ -130,7 +130,7 @@ class AstropyDtype(ExtensionDtype):
             ) from None
         return spec.parse_params(parsed.params)
 
-    def construct_array_type(self) -> type[ExtensionArray]:
+    def construct_array_type(self) -> "type[ExtensionArray]":
         return AstropyExtensionArray
 
 

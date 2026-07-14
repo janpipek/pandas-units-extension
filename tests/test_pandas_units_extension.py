@@ -453,7 +453,9 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
         tm.assert_series_equal(result, expected)
 
         result2 = s ** (-2)
-        expected2 = pd.Series([1, 1 / 4] + 8 * [1 / 9], dtype="astropy{quantity}[m^(-2)]")
+        expected2 = pd.Series(
+            [1, 1 / 4] + 8 * [1 / 9], dtype="astropy{quantity}[m^(-2)]"
+        )
         tm.assert_series_equal(result2, expected2)
 
     def test_add_incompatible_units(self):
@@ -526,7 +528,9 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "other",
         [
-            pytest.param(pd.Series([270, 270, 270], dtype="astropy{quantity}[K]"), id="series"),
+            pytest.param(
+                pd.Series([270, 270, 270], dtype="astropy{quantity}[K]"), id="series"
+            ),
             pytest.param(270 * u.K, id="value"),
         ],
     )
@@ -540,7 +544,9 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
     @pytest.mark.parametrize(
         "other",
         [
-            pytest.param(pd.Series([273.15, 274, 0], dtype="astropy{quantity}[K]"), id="series"),
+            pytest.param(
+                pd.Series([273.15, 274, 0], dtype="astropy{quantity}[K]"), id="series"
+            ),
             pytest.param(32 * u.imperial.deg_F, id="value"),
         ],
     )
@@ -603,13 +609,13 @@ class TestComparisonOps(base.BaseComparisonOpsTests):
 
 class TestRepr:
     def test_repr(self, simple_data):
-        expected: str = (
-            "<QuantityExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: astropy{quantity}[m]"
-        )
+        expected: str = "<QuantityExtensionArray>\n[1.0 m, 2.0 m, 3.0 m]\nLength: 3, dtype: astropy{quantity}[m]"
         assert expected == repr(simple_data)
 
     def test_series_repr(self, simple_data):
-        expected: str = "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: astropy{quantity}[m]"
+        expected: str = (
+            "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: astropy{quantity}[m]"
+        )
         assert expected == repr(pd.Series(simple_data))
 
 
@@ -649,7 +655,9 @@ class TestQuantitySeriesAccessor(BaseOpsUtil):
     def test_to_si_composite_unit(self):
         s = pd.Series([1, 2, 3], dtype="astropy{quantity}[km/h]")
         result = s.astropy.to_si()
-        expected = pd.Series([1000 / 3600, 2000 / 3600, 3000 / 3600], dtype="astropy{quantity}[m/s]")
+        expected = pd.Series(
+            [1000 / 3600, 2000 / 3600, 3000 / 3600], dtype="astropy{quantity}[m/s]"
+        )
         tm.assert_series_equal(result, expected)
 
     def test_temperature(self):
@@ -682,7 +690,9 @@ class TestVarious(BaseExtensionTests):
         ("value", "expected"),
         [
             pytest.param(
-                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="astropy{quantity}"), id="standard-unit"
+                1 * u.km,
+                pd.Series(["1 m", "1000 m"], dtype="astropy{quantity}"),
+                id="standard-unit",
             ),
             pytest.param(
                 1 * u.imperial.ft,
@@ -727,7 +737,9 @@ class TestVarious(BaseExtensionTests):
         ("value", "expected"),
         [
             pytest.param(
-                1 * u.km, pd.Series(["1 m", "1000 m"], dtype="astropy{quantity}"), id="standard-unit"
+                1 * u.km,
+                pd.Series(["1 m", "1000 m"], dtype="astropy{quantity}"),
+                id="standard-unit",
             ),
             pytest.param(
                 1 * u.imperial.ft,
@@ -745,7 +757,9 @@ class TestVarious(BaseExtensionTests):
         ("value", "expected"),
         [
             pytest.param(
-                1 * u.km, pd.Series(["1000 m"], dtype="astropy{quantity}"), id="standard-unit"
+                1 * u.km,
+                pd.Series(["1000 m"], dtype="astropy{quantity}"),
+                id="standard-unit",
             ),
             pytest.param(
                 1 * u.imperial.ft,
@@ -776,7 +790,9 @@ class TestVarious(BaseExtensionTests):
                 id="QuantityExtensionArray",
             ),
             pytest.param(
-                pd.Series([1, 2], dtype="astropy{quantity}[m]"), u.Quantity([1, 2], u.m), id="Series"
+                pd.Series([1, 2], dtype="astropy{quantity}[m]"),
+                u.Quantity([1, 2], u.m),
+                id="Series",
             ),
             pytest.param(
                 pd.Series([1e9, 2e9], dtype="timedelta64[ns]"),

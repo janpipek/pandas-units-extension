@@ -62,7 +62,7 @@ class AngleDtype(QuantityDtype):
         _check_angular(unit)
         super().__init__(unit)
 
-    def construct_array_type(self) -> type[QuantityExtensionArray]:
+    def construct_array_type(self) -> "type[QuantityExtensionArray]":
         return AngleExtensionArray
 
 

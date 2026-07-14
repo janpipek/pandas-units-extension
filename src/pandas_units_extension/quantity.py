@@ -117,7 +117,7 @@ class QuantityDtype(AstropyDtype):
                 unit = u.Unit(params)
         return cls(unit)  # type: ignore[arg-type]
 
-    def construct_array_type(self) -> type[ExtensionArray]:
+    def construct_array_type(self) -> "type[ExtensionArray]":
         return QuantityExtensionArray
 
     @property
