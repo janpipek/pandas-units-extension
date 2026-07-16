@@ -1,35 +1,31 @@
-from __future__ import annotations
+"""
+The ``quantity`` astropy type: pandas extension for :class:`~astropy.units.Quantity`.
+
+This is the first concrete member of the ``astropy`` framework. It provides
+``QuantityDtype`` / ``QuantityExtensionArray`` / ``QuantitySeriesAccessor`` and
+registers itself with the shared registry so that the ``astropy{quantity}[...]``
+dtype grammar, ``from_astropy`` and the ``.astropy`` accessor all resolve to it.
+"""
 
 import operator
-import re
 import sys
 import warnings
-
-from astropy.units import PhysicalType
-from typing_extensions import deprecated  # warnings.deprecated is Python >= 3.13
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
 import astropy.units as u
 import numpy as np
 import pandas as pd
-from pandas.api.extensions import (
-    ExtensionArray,
-    ExtensionDtype,
-    ExtensionScalarOpsMixin,
-    register_dataframe_accessor,
-    register_extension_dtype,
-    register_series_accessor,
-    take,
-)
+from pandas.api.extensions import ExtensionArray, ExtensionScalarOpsMixin, take
 from pandas.api.indexers import check_array_indexer
 from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops
 from pandas.core.dtypes.generic import ABCDataFrame, ABCIndex, ABCSeries
-from pandas.core.indexers import (
-    getitem_returns_view,
-)
+from pandas.core.indexers import getitem_returns_view
 from pandas.util._exceptions import find_stack_level
+
+from .base import AstropyDtype, AstropyExtensionArray, AstropySeriesAccessor
+from .registry import AstropyTypeSpec, register_astropy_type
 
 if TYPE_CHECKING:
     import astropy.units.typing as ut
@@ -40,6 +36,7 @@ if TYPE_CHECKING:
         NpDtype,
         npt,
     )
+
 # In absence of a proper UnitBase class that also includes function units we define our own here
 UnitInstance: TypeAlias = u.UnitBase | u.FunctionUnitBase
 
@@ -56,24 +53,13 @@ class InvalidUnitError(ValueError):
     """
 
 
-@deprecated("Use InvalidUnitConversionError instead.")
-class InvalidUnitConversion(InvalidUnitConversionError):
-    pass
-
-
-@deprecated("Use InvalidUnitError instead.")
-class InvalidUnit(InvalidUnitError):
-    pass
-
-
-@register_extension_dtype
-class UnitsDtype(ExtensionDtype):
+class QuantityDtype(AstropyDtype):
     """
-    Description of the units type.
+    Description of the quantity type.
 
-    The name is formed as "unit[.*]" where the inside of the square
-    brackets must be a unit name as understood by astropy units.
-    "unit" means the unit is not specified and will be extracted
+    The name is formed as ``astropy{quantity}[.*]`` where the inside of the
+    square brackets must be a unit name as understood by astropy units.
+    ``astropy{quantity}`` means the unit is not specified and will be extracted
     from the respective array.
 
     Parameters
@@ -82,9 +68,16 @@ class UnitsDtype(ExtensionDtype):
         The physical unit of this dtype
 
     TODO: reconsider the unspecified unit
-    """
 
-    BASE_NAME: str = "unit"
+    Examples
+    --------
+    >>> import astropy.units as u
+    >>> from pandas_units_extension import QuantityDtype
+    >>> QuantityDtype(u.km / u.s)
+    QuantityDtype("km / s")
+    >>> QuantityDtype(u.m).name
+    'astropy{quantity}[m]'
+    """
 
     type: type = u.Quantity
     kind: str = "O"
@@ -92,36 +85,46 @@ class UnitsDtype(ExtensionDtype):
     _is_numeric: bool = False
     _metadata: tuple[str] = ("unit",)
 
+    # The type selector used in the dtype grammar (``astropy{<_selector>}[...]``).
+    _selector: str = "quantity"
+
     unit: UnitInstance | None
 
     def __init__(self, unit: UnitInstance | None = None) -> None:
         self.unit = unit
 
     @classmethod
-    def construct_from_string(cls, string: str) -> UnitsDtype:
-        if not isinstance(string, str):
-            raise TypeError(
-                f"'construct_from_string' expects a string, got {type(string)}"
-            )
-        if string == cls.BASE_NAME:
-            return cls()
-        match: re.Match[str] | None = re.match(
-            f"{cls.BASE_NAME}\\[(?P<name>.*)\\]$", string
-        )
-        if not match:
-            raise TypeError(f"Cannot construct a 'UnitsDtype' from '{string}'")
-        unit_string = match["name"]
-        with u.imperial.enable():
-            return cls(u.Unit(unit_string))  # type: ignore[arg-type]
+    def _parse_params(cls, params: str | None) -> "QuantityDtype":
+        """
+        Build a dtype from the ``[params]`` part of a dtype string.
 
-    def construct_array_type(self) -> type[ExtensionArray]:
-        return UnitsExtensionArray
+        Parameters
+        ----------
+        params : str or None
+            The unit string (e.g. ``"km/s"`` or ``""``), or ``None`` when no
+            brackets were given (``astropy{quantity}``).
+
+        Returns
+        -------
+        QuantityDtype
+            An instance of ``cls`` (so subclasses like ``AngleDtype`` build
+            themselves and apply their own unit validation).
+        """
+        if params is None:
+            unit = None
+        else:
+            with u.imperial.enable():
+                unit = u.Unit(params)
+        return cls(unit)  # type: ignore[arg-type]
+
+    def construct_array_type(self) -> "type[ExtensionArray]":
+        return QuantityExtensionArray
 
     @property
     def name(self) -> str:
         if self.unit is None:
-            return self.BASE_NAME
-        return f"{self.BASE_NAME}[{self.unit.to_string()}]"
+            return f"astropy{{{self._selector}}}"
+        return f"astropy{{{self._selector}}}[{self.unit.to_string()}]"
 
     @property
     def na_value(self) -> u.Quantity:
@@ -132,13 +135,13 @@ class UnitsDtype(ExtensionDtype):
             return f"{self.__class__.__name__}()"
         return f'{self.__class__.__name__}("{self.unit.to_string()}")'
 
-    def _get_common_dtype(self, dtypes: list[DtypeObj]) -> DtypeObj | None:
+    def _get_common_dtype(self, dtypes: "list[DtypeObj]") -> "DtypeObj | None":
         if len(set(dtypes)) == 1:
             # only itself
             return self
 
-        def _get_physical_type(dtype: Any) -> PhysicalType | None:
-            if isinstance(dtype, UnitsDtype):
+        def _get_physical_type(dtype: Any) -> u.PhysicalType | None:
+            if isinstance(dtype, QuantityDtype):
                 if dtype.unit:
                     return dtype.unit.physical_type
                 return u.physical.dimensionless
@@ -155,8 +158,8 @@ class UnitsDtype(ExtensionDtype):
 
 def convert(
     q: u.Quantity,
-    new_unit: ut.UnitLike,
-    equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None,
+    new_unit: "ut.UnitLike",
+    equivalencies: "list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None" = None,
 ) -> u.Quantity:
     """
     Convert quantity to a new unit.
@@ -181,10 +184,17 @@ def convert(
 
     Raises
     ------
-    InvalidUnit
+    InvalidUnitError
         When target unit does not exist.
-    InvalidUnitConversion
+    InvalidUnitConversionError
         If the conversion is invalid.
+
+    Examples
+    --------
+    >>> import astropy.units as u
+    >>> from pandas_units_extension.quantity import convert
+    >>> convert(u.Quantity([1, 2, 3], "km"), "m")
+    <Quantity [1000., 2000., 3000.] m>
     """
     with u.imperial.enable():
         try:
@@ -201,31 +211,40 @@ def convert(
 
 
 def as_quantity(
-    obj: ut.QuantityLike | UnitsExtensionArray | ABCSeries, copy: bool = True
+    obj: "ut.QuantityLike | QuantityExtensionArray | ABCSeries", copy: bool = True
 ) -> u.Quantity:
     """
     Convert whatever input to a Quantity.
 
     Parameters
     ----------
-    obj : QuantityLike or UnitsExtensionArray or Series
-        The object to convert to a Quantity. This can be a QuantityLike, a UnitsExtensionArray,
+    obj : QuantityLike or QuantityExtensionArray or Series
+        The object to convert to a Quantity. This can be a QuantityLike, a QuantityExtensionArray,
         a timedelta64 array, or a list-like of strings, Series, that can be parsed as Quantities.
     copy : bool, default True
-        Whether to copy the data if the input is already a Quantity or UnitsExtensionArray.
+        Whether to copy the data if the input is already a Quantity or QuantityExtensionArray.
         This is ignored for list-like of strings, as they are already copied by list().
 
     Returns
     -------
     Quantity
         The input converted to a Quantity.
+
+    Examples
+    --------
+    >>> import astropy.units as u
+    >>> from pandas_units_extension.quantity import as_quantity
+    >>> as_quantity([1, 2, 3] * u.m)
+    <Quantity [1., 2., 3.] m>
+    >>> as_quantity(["1 m", "2 m"])
+    <Quantity [1., 2.] m>
     """
     if isinstance(obj, u.Quantity):
         return u.Quantity(obj, copy=copy)
-    elif isinstance(obj, UnitsExtensionArray):
+    elif isinstance(obj, QuantityExtensionArray):
         return u.Quantity(obj._value, obj._unit, copy=copy)
-    elif isinstance(obj, ABCSeries) and isinstance(obj.dtype, UnitsDtype):
-        return as_quantity(obj.array, copy=copy)  # type: ignore (We know it's a UnitsExtensionArray)
+    elif isinstance(obj, ABCSeries) and isinstance(obj.dtype, QuantityDtype):
+        return as_quantity(obj.array, copy=copy)  # type: ignore (We know it's a QuantityExtensionArray)
     elif is_array_like(obj) and obj.dtype == "timedelta64[ns]":  # type: ignore (We know it has a dtype)
         # Note: Timedelta is internally represented as int64
         return u.Quantity(np.asarray(obj, dtype=np.int64), "ns", copy=copy).to("s")
@@ -242,36 +261,65 @@ def as_quantity(
     return u.Quantity(obj)
 
 
-class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
+class QuantityExtensionArray(AstropyExtensionArray, ExtensionScalarOpsMixin):
     """
     Pandas extension array supporting physical quantities with units based on the astropy.units package.
+
+    Examples
+    --------
+    >>> import astropy.units as u
+    >>> from pandas_units_extension import QuantityExtensionArray
+    >>> arr = QuantityExtensionArray([1, 2, 3], u.m)
+    >>> arr
+    <QuantityExtensionArray>
+    [1.0 m, 2.0 m, 3.0 m]
+    Length: 3, dtype: astropy{quantity}[m]
+    >>> arr.to_astropy()
+    <Quantity [1., 2., 3.] m>
+    >>> arr.to("mm").to_astropy()
+    <Quantity [1000., 2000., 3000.] mm>
     """
 
-    # Adapted from MaskedArray to create new objects of UnitsExtensionArray for views and slices
-    @classmethod
-    def _simple_new(cls, values: np.ndarray, dtype: UnitsDtype) -> UnitsExtensionArray:
+    # The dtype class this array uses; subclasses override to attach their own dtype.
+    _dtype_cls: "type[QuantityDtype]" = QuantityDtype
+
+    def _wrap_result(self, quantity: u.Quantity) -> "QuantityExtensionArray":
         """
-        Create a new UnitsExtensionArray from the given values and dtype.
+        Wrap a result quantity back into an extension array.
+
+        The base implementation preserves the array's own type. Subclasses (e.g.
+        ``AngleExtensionArray``) override this to degrade to a more general type
+        when the result leaves their physical domain (e.g. ``angle / angle``).
+        """
+        return type(self)(quantity)
+
+    # Adapted from MaskedArray to create new objects of QuantityExtensionArray for views and slices
+    @classmethod
+    def _simple_new(
+        cls, values: np.ndarray, dtype: QuantityDtype
+    ) -> "QuantityExtensionArray":
+        """
+        Create a new QuantityExtensionArray from the given values and dtype.
 
         Parameters
         ----------
         values : np.ndarray
             The numerical values (without unit).
-        dtype : UnitsDtype
+        dtype : QuantityDtype
             The dtype of the new array, which contains the unit information.
 
         Returns
         -------
-        UnitsExtensionArray
-            A new UnitsExtensionArray with the given values and dtype.
+        QuantityExtensionArray
+            A new QuantityExtensionArray with the given values and dtype.
         """
-        result = UnitsExtensionArray.__new__(cls)
+        result = QuantityExtensionArray.__new__(cls)
         result._dtype = dtype
         result._value = values
         return result
 
     def __init__(
-        self, array, unit: ut.UnitLike | None = None, *, copy: bool = True
+        self, array, unit: "ut.UnitLike | None" = None, *, copy: bool = True
     ) -> None:
         q: u.Quantity = as_quantity(array, copy=copy)
 
@@ -282,7 +330,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # after comparison operations. The raised ValueError is caught there and handled properly.
         if isinstance(q.dtype, np.dtypes.BoolDType):
             raise ValueError(
-                "Boolean array cannot sensible be converted to Quantity and therefore UnitsExtensionArray."
+                "Boolean array cannot sensible be converted to Quantity and therefore QuantityExtensionArray."
             )
 
         if isinstance(unit, str):
@@ -298,10 +346,10 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 q = convert(q, unit)
             except InvalidUnitConversionError as e:
                 raise InvalidUnitConversionError(
-                    "Could not convert units in initialization of UnitsExtensionArray: "
+                    "Could not convert units in initialization of QuantityExtensionArray: "
                 ) from e
 
-        self._dtype: UnitsDtype = UnitsDtype(q.unit)
+        self._dtype: QuantityDtype = self._dtype_cls(q.unit)
         self._value: np.ndarray[np.float64] = q.value.astype(float)
 
     @property
@@ -312,14 +360,14 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self.dtype.unit
 
     @property
-    def dtype(self) -> UnitsDtype:
+    def dtype(self) -> QuantityDtype:
         return self._dtype
 
     def __len__(self) -> int:
         return len(self._value)
 
     def __array__(
-        self, dtype: NpDtype | None = None, copy: bool | None = None
+        self, dtype: "NpDtype | None" = None, copy: bool | None = None
     ) -> np.ndarray:
         """
         Convert implicitly to a numpy array.
@@ -373,13 +421,13 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         bool
             Whether the item is in the array.
         """
-        # Check if item is a Quantity object, if not it cannot be in the UnitsExtensionArray
+        # Check if item is a Quantity object, if not it cannot be in the QuantityExtensionArray
         if not isinstance(item, u.Quantity):
             return False
 
         # Check if item is na_value by checking if the item is scalar through the ndim parameter and nan
         if item.ndim == 0 and np.isnan(item):
-            # Check that the physical type of the unit of the nan Quantity is the same as that of UnitsExtensionArray.
+            # Check that the physical type of the unit of the nan Quantity is the same as that of QuantityExtensionArray.
             # Here we are a bit flexible so `np.nan * u.cm` is considered to be the same as `np.nan * u.m` as the value
             # of the Quantity and therefore the scaling of the unit does not really matter for nan.
             if item.unit.physical_type == self._unit.physical_type:
@@ -392,24 +440,23 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self._value.nbytes + sys.getsizeof(self._unit)
 
     @classmethod
-    def _from_sequence(cls, scalars, dtype=None, copy=False) -> UnitsExtensionArray:
-        if dtype:
-            result = cls(scalars, unit=dtype.unit, copy=copy)
-        else:
-            result = cls(scalars, copy=copy)
-        return result
+    def _from_sequence(
+        cls, scalars, dtype=None, copy=False
+    ) -> "QuantityExtensionArray":
+        unit = dtype.unit if dtype else None
+        return cls(scalars, unit=unit, copy=copy)
 
     @classmethod
     def _from_sequence_of_strings(
         cls, strings, *, dtype=None, copy=False
-    ) -> UnitsExtensionArray:
+    ) -> "QuantityExtensionArray":
         # Note: copy is ignored as we always convert the strings
         values: list[u.Quantity] = [u.Quantity(s) for s in strings]
         unit: UnitInstance = dtype.unit if dtype else None
-        return UnitsExtensionArray(values, unit)
+        return cls(values, unit)
 
     @classmethod
-    def _from_scalars(cls, scalars, *, dtype=None) -> UnitsExtensionArray:
+    def _from_scalars(cls, scalars, *, dtype=None) -> "QuantityExtensionArray":
         # Contrary to the superclass, this function will ignore the `dtype`
         # if given, and will always try to infer the `dtype` from the scalars.
         # This is due to arithmetic operation that are changing the unit and
@@ -418,7 +465,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # original `dtype` of the left operand, not necessarily the correct
         # `dtype` of the result.
         try:
-            result: UnitsExtensionArray = cls._from_sequence(scalars)
+            result: QuantityExtensionArray = cls._from_sequence(scalars)
         except (ValueError, TypeError):
             raise
         except Exception:
@@ -442,15 +489,29 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         """
         return as_quantity(self)
 
-    def unique(self) -> UnitsExtensionArray:
+    def to_astropy(self) -> u.Quantity:
+        """
+        Convert to the native astropy object (a Quantity).
+
+        Returns
+        -------
+        Quantity
+        """
+        return self.to_quantity()
+
+    @classmethod
+    def _from_astropy(cls, obj: u.Quantity) -> "QuantityExtensionArray":
+        return cls(as_quantity(obj))
+
+    def unique(self) -> "QuantityExtensionArray":
         return self.__class__(pd.unique(self._value), unit=self._unit)
 
     def searchsorted(
         self,
-        value: NumpyValueArrayLike | u.Quantity | UnitsExtensionArray,
+        value: "NumpyValueArrayLike | u.Quantity | QuantityExtensionArray",
         side: Literal["left", "right"] = "left",
-        sorter: NumpySorter | None = None,
-    ) -> npt.NDArray[np.intp] | np.intp:
+        sorter: "NumpySorter | None" = None,
+    ) -> "npt.NDArray[np.intp] | np.intp":
         # Convert self and the value to a Quantity
         self_q: u.Quantity = as_quantity(self)
         value_q: u.Quantity = as_quantity(value)
@@ -460,9 +521,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def to(
         self,
-        new_unit: ut.UnitLike,
-        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None,
-    ) -> UnitsExtensionArray:
+        new_unit: "ut.UnitLike",
+        equivalencies: "list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None" = None,
+    ) -> "QuantityExtensionArray":
         """
         Convert to another unit (if possible).
 
@@ -475,20 +536,20 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         Returns
         -------
-        UnitsExtensionArray
+        QuantityExtensionArray
             A new extension array with converted units
         """
         q: u.Quantity = self.to_quantity()
         new_data: u.Quantity = convert(q, new_unit, equivalencies)
-        return UnitsExtensionArray(new_data)
+        return self._wrap_result(new_data)
 
     def astype(self, dtype, copy: bool = True):
-        def _as_units_dtype(unit: UnitInstance) -> UnitsExtensionArray:
+        def _as_units_dtype(unit: UnitInstance) -> "QuantityExtensionArray":
             return self.to(unit)
 
         if dtype == self.dtype:
             return self.copy() if copy else self
-        elif isinstance(dtype, UnitsDtype):
+        elif isinstance(dtype, QuantityDtype):
             return _as_units_dtype(dtype.unit)
         elif dtype == "timedelta64[ns]":
             nanoseconds: u.Quantity = convert(as_quantity(self, copy=copy), "ns")
@@ -500,7 +561,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return np.array([x * self._unit for x in self._value], dtype=object)
         elif isinstance(dtype, str):
             try:
-                dtype = UnitsDtype(dtype)
+                dtype = QuantityDtype(dtype)
                 return _as_units_dtype(dtype.unit)
             except Exception:
                 pass
@@ -508,11 +569,11 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Fall-back to default variant
         return ExtensionArray.astype(self, dtype, copy=copy)
 
-    def view(self, dtype=None) -> UnitsExtensionArray:
+    def view(self, dtype=None) -> "QuantityExtensionArray":
         if dtype is not None:
             # TODO: Perhaps implement?
             raise NotImplementedError(dtype)
-        result = UnitsExtensionArray.__new__(type(self))
+        result = QuantityExtensionArray.__new__(type(self))
         result._dtype = self.dtype
         result._value = self._value
         result._readonly = self._readonly
@@ -521,7 +582,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _formatter(self, boxed: bool = False):
         return lambda x: str(x) if isinstance(x, u.Quantity) else f"{x} {self._unit}"
 
-    def __getitem__(self, item) -> u.Quantity | UnitsExtensionArray:
+    def __getitem__(self, item) -> "u.Quantity | QuantityExtensionArray":
         # Return zerodim Quantity object for singular item
         if is_scalar(item):
             return u.Quantity(self._value[item], unit=self._unit)
@@ -529,8 +590,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Use pandas utility function to check and convert the item to a valid indexer
         item = check_array_indexer(self, item)
 
-        # Create new UnitsExtensionArray
-        result: UnitsExtensionArray = self._simple_new(self._value[item], self.dtype)
+        # Create new QuantityExtensionArray
+        result: QuantityExtensionArray = self._simple_new(self._value[item], self.dtype)
 
         # If the result is a view, keep read-only flag
         if getitem_returns_view(self, item):
@@ -539,7 +600,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return result
 
     def __setitem__(
-        self, key, value: ut.QuantityLike | UnitsExtensionArray | None
+        self, key, value: "ut.QuantityLike | QuantityExtensionArray | None"
     ) -> None:
         if self._readonly:
             raise ValueError("Cannot modify read-only array")
@@ -564,7 +625,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
     def take(
         self, indices, *, allow_fill=False, fill_value=None
-    ) -> UnitsExtensionArray:
+    ) -> "QuantityExtensionArray":
         if allow_fill:
             if fill_value is None or np.isnan(fill_value):
                 fill_value = np.nan
@@ -573,19 +634,19 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         values = take(
             self._value, indices, allow_fill=allow_fill, fill_value=fill_value
         )
-        return UnitsExtensionArray._simple_new(values, self._dtype)
+        return self._simple_new(values, self._dtype)
 
     @classmethod
-    def _concat_same_type(cls, to_concat) -> UnitsExtensionArray:
+    def _concat_same_type(cls, to_concat) -> "QuantityExtensionArray":
         if len(to_concat) == 0:
-            return UnitsExtensionArray([])
+            return cls([])
         elif len(to_concat) == 1:
             return to_concat[0]
         elif len(set(item._unit for item in to_concat)) != 1:
             # This actually never happens but left here for completeness.
             raise ValueError("Not all concatenated arrays have the same units.")
         else:
-            return UnitsExtensionArray(
+            return cls(
                 np.concatenate([item._value for item in to_concat]), to_concat[0]._unit
             )
 
@@ -618,8 +679,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
             if is_divmod:
                 # divmod returns a tuple of results
-                return cls(result_q[0]), cls(result_q[1])
-            return cls(result_q)
+                return self._wrap_result(result_q[0]), self._wrap_result(result_q[1])
+            return self._wrap_result(result_q)
 
         return set_function_name(_binop, op_name, cls)
 
@@ -654,12 +715,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return set_function_name(_binop, op_name, cls)
 
-    def copy(self) -> UnitsExtensionArray:
-        return UnitsExtensionArray._simple_new(self._value.copy(), self.dtype)
+    def copy(self) -> "QuantityExtensionArray":
+        return self._simple_new(self._value.copy(), self.dtype)
 
     def _reduce(
         self, name: str, skipna: bool = True, keepdims: bool = False, **kwargs
-    ) -> UnitsExtensionArray | u.Quantity:
+    ) -> "QuantityExtensionArray | u.Quantity":
         # Borrowed from IntegerArray
 
         to_proxy = ("min", "max", "sum", "mean", "std", "var")
@@ -702,41 +763,49 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return self._value, None
 
     @classmethod
-    def _from_factorized(cls, values, original) -> UnitsExtensionArray:
-        return UnitsExtensionArray(values, original.dtype.unit)
+    def _from_factorized(cls, values, original) -> "QuantityExtensionArray":
+        return cls(values, original.dtype.unit)
 
     def value_counts(self, dropna=True) -> pd.Series:
         # Units preserved in the result index
         result = pd.Index(self._value).value_counts(dropna=dropna)
-        result_index = UnitsExtensionArray(result.index, self.dtype.unit)
+        result_index = type(self)(result.index, self.dtype.unit)
         result.index = result_index
         return result
 
 
-UnitsExtensionArray._add_arithmetic_ops()
-UnitsExtensionArray._add_comparison_ops()
-UnitsExtensionArray.__pow__ = UnitsExtensionArray._create_arithmetic_method(
+QuantityExtensionArray._add_arithmetic_ops()
+QuantityExtensionArray._add_comparison_ops()
+QuantityExtensionArray.__pow__ = QuantityExtensionArray._create_arithmetic_method(
     operator.pow
 )
 
 
-@register_series_accessor("units")
-class UnitsSeriesAccessor:
+class QuantitySeriesAccessor(AstropySeriesAccessor):
     """
-    Accessor adding unit functionality to series.
+    Accessor adding quantity functionality to a Series (``series.astropy``).
 
-    Parameters
-    ----------
-    series : Series[UnitsExtensionArray]
-        The series the accessor methods are applied on.
+    Surfaced when the Series is backed by a :class:`QuantityExtensionArray`.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> import pandas_units_extension
+    >>> s = pd.Series([1, 2, 3], dtype="astropy{quantity}[km]")
+    >>> s.astropy.unit
+    Unit("km")
+    >>> s.astropy.to_si()
+    0    1000.0 m
+    1    2000.0 m
+    2    3000.0 m
+    dtype: astropy{quantity}[m]
     """
 
-    series: pd.Series[UnitsExtensionArray]
-
-    def __init__(self, series: pd.Series[UnitsExtensionArray]) -> None:
-        if not isinstance(series.array, UnitsExtensionArray):
-            raise AttributeError("Only UnitsExtensionArray has units accessor.")
-        self.series = series
+    def _wrap(self, result: QuantityExtensionArray) -> pd.Series:
+        """
+        Construct a series with different data but the same index and name.
+        """
+        return pd.Series(result, name=self.series.name, index=self.series.index)
 
     @property
     def unit(self) -> UnitInstance:
@@ -749,23 +818,10 @@ class UnitsSeriesAccessor:
         """
         return self._array._unit
 
-    @property
-    def _array(self) -> UnitsExtensionArray:
-        """
-        Shortcut to the extension array of the series.
-        """
-        return self.series.array  # type: ignore
-
-    def _wrap(self, result: UnitsExtensionArray) -> pd.Series:
-        """
-        Construct a series with different data but the same index and name.
-        """
-        return pd.Series(result, name=self.series.name, index=self.series.index)
-
     def to(
         self,
-        unit: ut.UnitLike,
-        equivalencies: list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None = None,
+        unit: "ut.UnitLike",
+        equivalencies: "list[tuple[ut.UnitLike, ut.UnitLike, Callable]] | None" = None,
     ) -> pd.Series:
         """
         Convert series to another unit.
@@ -782,7 +838,7 @@ class UnitsSeriesAccessor:
         Series
             A new converted series.
         """
-        new_array: UnitsExtensionArray = self._array.to(unit, equivalencies)
+        new_array: QuantityExtensionArray = self._array.to(unit, equivalencies)
         return self._wrap(new_array)
 
     def to_quantity(self) -> u.Quantity:
@@ -806,41 +862,17 @@ class UnitsSeriesAccessor:
             A new converted series.
         """
         q: u.Quantity = self.to_quantity()
-        new_array: UnitsExtensionArray = UnitsExtensionArray(q.si)
+        new_array: QuantityExtensionArray = QuantityExtensionArray(q.si)
         return self._wrap(new_array)
 
 
-# TODO: Add more useful methods for multi-column conversion?
-@register_dataframe_accessor("units")
-class UnitsDataFrameAccessor:
-    """
-    Accessor adding unit functionality to data frames.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The dataframe the accessor methods are applied on.
-    """
-
-    df: pd.DataFrame
-
-    def __init__(self, df: pd.DataFrame) -> None:
-        self.df = df
-
-    def to_si(self) -> pd.DataFrame:
-        """
-        Convert all columns that are of unit type to SI.
-
-        Returns
-        -------
-        DataFrame
-            A new converted DataFrame.
-        """
-
-        def _f(col):
-            try:
-                return col.units.to_si()
-            except AttributeError:
-                return col
-
-        return self.df.apply(_f)
+register_astropy_type(
+    AstropyTypeSpec(
+        selector="quantity",
+        native_type=u.Quantity,
+        dtype_cls=QuantityDtype,
+        array_cls=QuantityExtensionArray,
+        series_accessor_cls=QuantitySeriesAccessor,
+        parse_params=QuantityDtype._parse_params,
+    )
+)
