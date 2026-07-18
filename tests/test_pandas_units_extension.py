@@ -847,3 +847,36 @@ class TestArrayInterface:
     def test_disallowed_conversions(self, data, dtype):
         with pytest.raises(ValueError):
             np.array(data, dtype=dtype, copy=False)
+
+
+class TestUfuncs:
+    """Tests for __array_ufunc__ delegation to Quantity (GH#48)."""
+
+    TRIG_FUNCS = [np.sin, np.cos, np.tan]
+
+    @pytest.mark.parametrize("func", TRIG_FUNCS)
+    @pytest.mark.parametrize(
+        "angles",
+        [
+            pytest.param([0, 30, 45, 60] * u.deg, id="deg"),
+            pytest.param([0, np.pi / 6, np.pi / 4, np.pi / 3] * u.rad, id="rad"),
+        ],
+    )
+    def test_matches_quantity_behaviour(self, func, angles):
+        result = func(pd.Series(angles, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(func(angles)))
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.parametrize("func", TRIG_FUNCS)
+    def test_incompatible_unit_raises(self, func):
+        lengths = pd.Series([1, 2] * u.m, dtype="unit")
+        with pytest.raises(u.UnitsError):
+            func(lengths)
+
+    def test_at_respects_readonly(self):
+        """np.add.at writes in place; it must respect the read-only flag."""
+        arr = pd.Series([0, 45, 90] * u.deg, dtype="unit").array
+        arr._readonly = True
+        with pytest.raises(ValueError, match="read-only"):
+            np.add.at(arr, [0], 10 * u.deg)
+        assert list(arr._value) == [0, 45, 90]
