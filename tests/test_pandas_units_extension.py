@@ -4,6 +4,7 @@ from __future__ import annotations
 import operator
 
 import astropy.units as u
+from astropy.units.quantity_helper import UFUNC_HELPERS
 import numpy as np
 import pandas as pd
 import pandas.testing as tm
@@ -852,9 +853,14 @@ class TestArrayInterface:
 class TestUfuncs:
     """Tests for __array_ufunc__ delegation to Quantity (GH#48)."""
 
-    TRIG_FUNCS = [np.sin, np.cos, np.tan]
+    # All ufuncs astropy treats like np.sin (radians in, dimensionless out),
+    # taken from its registry so that new astropy additions get tested too.
+    ANGLE_FUNCS = sorted(
+        (uf for uf, helper in UFUNC_HELPERS.items() if helper is UFUNC_HELPERS[np.sin]),
+        key=lambda uf: uf.__name__,
+    )
 
-    @pytest.mark.parametrize("func", TRIG_FUNCS)
+    @pytest.mark.parametrize("func", ANGLE_FUNCS)
     @pytest.mark.parametrize(
         "angles",
         [
@@ -867,7 +873,7 @@ class TestUfuncs:
         expected = pd.Series(UnitsExtensionArray(func(angles)))
         tm.assert_series_equal(result, expected)
 
-    @pytest.mark.parametrize("func", TRIG_FUNCS)
+    @pytest.mark.parametrize("func", ANGLE_FUNCS)
     def test_incompatible_unit_raises(self, func):
         lengths = pd.Series([1, 2] * u.m, dtype="unit")
         with pytest.raises(u.UnitsError):
