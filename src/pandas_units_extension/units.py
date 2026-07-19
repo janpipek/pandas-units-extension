@@ -698,6 +698,26 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return self._from_scalars([result], dtype=self.dtype)
         return result
 
+    def _accumulate(
+        self, name: str, skipna: bool = True, **kwargs
+    ) -> UnitsExtensionArray:
+        if name == "cumprod":
+            raise TypeError(
+                f"Cannot perform cumulative product 'cumprod' with type '{self.dtype}'"
+            )
+
+        q: u.Quantity = self.to_quantity()
+
+        if name == "cummin":
+            result_q = np.minimum.accumulate(q, **kwargs)
+
+        elif name == "cummax":
+            result_q = np.maximum.accumulate(q, **kwargs)
+        else:
+            result_q = getattr(q, name)(**kwargs)
+
+        return self.__class__(result_q)
+
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         return self._value, None
 
