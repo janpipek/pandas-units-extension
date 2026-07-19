@@ -4,7 +4,14 @@ from __future__ import annotations
 import operator
 
 import astropy.units as u
-from astropy.units.quantity_helper import UFUNC_HELPERS
+from astropy.units.quantity_helper.helpers import (
+    degree_to_radian_ufuncs,
+    dimensionless_to_dimensionless_ufuncs,
+    dimensionless_to_radian_ufuncs,
+    invariant_ufuncs,
+    radian_to_degree_ufuncs,
+    radian_to_dimensionless_ufuncs,
+)
 import numpy as np
 import pandas as pd
 import pandas.testing as tm
@@ -853,12 +860,19 @@ class TestArrayInterface:
 class TestUfuncs:
     """Tests for __array_ufunc__ delegation to Quantity (GH#48)."""
 
-    # All ufuncs astropy treats like np.sin (radians in, dimensionless out),
-    # taken from its registry so that new astropy additions get tested too.
+    # Ufunc groups taken from astropy's registry, so that new astropy
+    # additions get tested automatically. Sorted for deterministic test ids.
     ANGLE_FUNCS = sorted(
-        (uf for uf, helper in UFUNC_HELPERS.items() if helper is UFUNC_HELPERS[np.sin]),
+        radian_to_dimensionless_ufuncs
+        + degree_to_radian_ufuncs
+        + radian_to_degree_ufuncs,
         key=lambda uf: uf.__name__,
     )
+    DIMENSIONLESS_FUNCS = sorted(
+        dimensionless_to_radian_ufuncs + dimensionless_to_dimensionless_ufuncs,
+        key=lambda uf: uf.__name__,
+    )
+    INVARIANT_FUNCS = sorted(set(invariant_ufuncs), key=lambda uf: uf.__name__)
 
     @pytest.mark.parametrize("func", ANGLE_FUNCS)
     @pytest.mark.parametrize(
@@ -868,9 +882,31 @@ class TestUfuncs:
             pytest.param([0, np.pi / 6, np.pi / 4, np.pi / 3] * u.rad, id="rad"),
         ],
     )
-    def test_matches_quantity_behaviour(self, func, angles):
+    def test_angle_funcs_match_quantity_behaviour(self, func, angles):
         result = func(pd.Series(angles, dtype="unit"))
         expected = pd.Series(UnitsExtensionArray(func(angles)))
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.parametrize("func", DIMENSIONLESS_FUNCS)
+    def test_dimensionless_funcs_match_quantity_behaviour(self, func):
+        # arccosh is only defined for values >= 1, the others accept (0, 1)
+        values = [1.5, 2, 3] if func is np.arccosh else [0.25, 0.5, 0.75]
+        q = values * u.dimensionless_unscaled
+        result = func(pd.Series(q, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(func(q)))
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.parametrize("func", INVARIANT_FUNCS)
+    def test_invariant_funcs_match_quantity_behaviour(self, func):
+        q = [-1.5, 0, 2.5] * u.m
+        result = func(pd.Series(q, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(func(q)))
+        tm.assert_series_equal(result, expected)
+
+    def test_sqrt_changes_unit(self):
+        areas = pd.Series([4, 9, 16] * u.m**2, dtype="unit")
+        result = np.sqrt(areas)
+        expected = pd.Series([2, 3, 4], dtype="unit[m]")
         tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("func", ANGLE_FUNCS)

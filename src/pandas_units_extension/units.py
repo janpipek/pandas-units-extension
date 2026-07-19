@@ -430,6 +430,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return tuple(_wrap(item) for item in result)
         return _wrap(result)
 
+    def __neg__(self) -> UnitsExtensionArray:
+        return UnitsExtensionArray(-self.to_quantity())
+
+    def __pos__(self) -> UnitsExtensionArray:
+        return UnitsExtensionArray(+self.to_quantity())
+
     def __contains__(self, item: object) -> bool | np.bool_:
         """
         Return for `item in self`, supports NaN values and items of different, but convertible units.
