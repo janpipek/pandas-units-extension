@@ -46,6 +46,7 @@ _all_arithmetic_operators: list[str] = [
     # '__rpow__',
     "__mod__",
     "__rmod__",
+    # "__neg__",
 ]
 _all_equality_comparison_operators = [operator.eq, operator.ne]
 _all_ordering_comparison_operators = [
@@ -605,6 +606,10 @@ class TestRepr:
     def test_series_repr(self, simple_data):
         expected: str = "0    1.0 m\n1    2.0 m\n2    3.0 m\ndtype: unit[m]"
         assert expected == repr(pd.Series(simple_data))
+
+
+class TestUnaryOpsTests(base.BaseUnaryOpsTests):
+    pass
 
 
 class TestUnitsSeriesAccessor(BaseOpsUtil):
