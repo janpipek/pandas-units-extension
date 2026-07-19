@@ -615,6 +615,10 @@ class TestRepr:
         assert expected == repr(pd.Series(simple_data))
 
 
+class TestUnaryOpsTests(base.BaseUnaryOpsTests):
+    pass
+
+
 class TestUnitsSeriesAccessor(BaseOpsUtil):
     def test_init(self, simple_data):
         s = pd.Series(simple_data)

@@ -731,6 +731,15 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return set_function_name(_binop, op_name, cls)
 
+    def __neg__(self):
+        return UnitsExtensionArray._simple_new(-self._value, self.dtype)
+
+    def __pos__(self) -> UnitsExtensionArray:
+        return self.copy()
+
+    def __abs__(self):
+        return UnitsExtensionArray._simple_new(np.abs(self._value), self.dtype)
+
     def copy(self) -> UnitsExtensionArray:
         return UnitsExtensionArray._simple_new(self._value.copy(), self.dtype)
 
