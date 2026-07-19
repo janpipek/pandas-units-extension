@@ -46,7 +46,6 @@ _all_arithmetic_operators: list[str] = [
     # '__rpow__',
     "__mod__",
     "__rmod__",
-    # "__neg__",
 ]
 _all_equality_comparison_operators = [operator.eq, operator.ne]
 _all_ordering_comparison_operators = [
