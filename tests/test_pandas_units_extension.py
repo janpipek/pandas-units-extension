@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
+from io import StringIO
 from packaging.version import Version
 from pandas.core import ops, roperator
 from pandas.tests.extension import base
@@ -847,3 +848,49 @@ class TestArrayInterface:
     def test_disallowed_conversions(self, data, dtype):
         with pytest.raises(ValueError):
             np.array(data, dtype=dtype, copy=False)
+
+
+class TestValuesForJson:
+    def test_simple_unit_strings(self):
+        arr = pd.array([1.0, 2.0, 3.0], dtype="unit[m]")
+        result = arr._values_for_json()
+ 
+        assert isinstance(result, np.ndarray)
+        assert list(result) == ["1.0 m", "2.0 m", "3.0 m"]
+ 
+    def test_compound_unit_strings(self):
+        arr = pd.array([2.5, 10.0], dtype="unit[km / s]")
+        result = arr._values_for_json()
+        assert list(result) == ["2.5 km / s", "10.0 km / s"]
+ 
+    def test_missing_values_become_none_not_nan_string(self):
+        arr = pd.array([1.0, np.nan, 3.0], dtype="unit[m]")
+        result = arr._values_for_json()
+ 
+        assert result[0] == "1.0 m"
+        assert result[1] is None
+        assert result[2] == "3.0 m"
+ 
+    def test_every_string_parses_back_to_the_original_quantity(self):
+        arr = pd.array([1.0, 2.5, 100.0], dtype="unit[km / s]")
+        for s, original in zip(arr._values_for_json(), arr):
+            assert u.Quantity(s) == original
+
+class TestJsonRoundTrip:
+       def test_convert_to_json_and_back(self):
+            s = pd.Series([1, 2, 3], dtype="unit[m]")
+
+            json_str = s.to_frame().to_json()
+            result = pd.read_json(StringIO(json_str))[0].astype("unit")
+
+            assert list(result) == list(s)
+            assert result.array.dtype == s.array.dtype
+
+       def test_convert_to_json_and_back_by_name(self):
+            s = pd.Series([1, 2, 3], dtype="unit[m]", name="length")
+
+            json_str = s.to_frame().to_json()
+            result = pd.read_json(StringIO(json_str))["length"].astype("unit")
+
+            assert list(result) == list(s)
+            assert result.array.dtype == s.array.dtype
