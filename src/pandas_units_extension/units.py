@@ -662,14 +662,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     ) -> UnitsExtensionArray | u.Quantity:
         # Borrowed from IntegerArray
 
-        to_proxy = ("min", "max", "sum", "mean", "std", "var")
-        to_nanops = ("median", "sem")
-        to_error = ("any", "all", "prod")
-
-        # TODO: Check the dimension of this
-        to_implement_yet = ("kurt", "skew")
-
-        if name in to_proxy:
+        # Implemented by astropy:
+        if name in ("min", "max", "sum", "mean", "std", "var"):
             q: u.Quantity = self.to_quantity()
             if name in ["std", "var"]:
                 kwargs = {"ddof": kwargs.pop("ddof", 1)}
@@ -679,17 +673,28 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 q = q[~np.isnan(q)]
             result: u.Quantity = getattr(q, name)(**kwargs)
 
-        elif name in to_nanops:
+        # Not implemented by astropy, but should be migrated to the top block of code when they do:
+        elif name == 'skew':
+            # Recycle methods from numpy and calculate Adjusted Fisher-Pearson Standardized Moment Coefficient:
+
+            mean = np.mean(self._value, **kwargs)
+            median = np.median(self._value, **kwargs)
+            standard_deviation = np.std(self._value, **kwargs)
+            result_without_dim = (3 * (mean - median)) / standard_deviation
+            result = u.Quantity(result_without_dim, u.dimensionless_unscaled)
+
+        elif name == "kurt":
+            pass
+
+        # This methods require a little ppost-processing for the nans:
+        elif name in ("median", "sem"):
             data = self._value
             method = getattr(nanops, "nan" + name)
             result_without_dim = method(data, skipna=skipna)
             result = u.Quantity(result_without_dim, self._unit)
 
-        elif name in to_error:
+        elif name in ("any", "all", "prod"):
             raise TypeError(f"Cannot perform '{name}' with type '{self.dtype}'")
-
-        elif name in to_implement_yet:
-            raise NotImplementedError
 
         else:
             raise ValueError(f"Invalid reduce operation: '{name}'")
