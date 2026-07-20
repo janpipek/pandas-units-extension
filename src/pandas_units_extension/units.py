@@ -707,6 +707,26 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return self._from_scalars([result], dtype=self.dtype)
         return result
 
+    def _accumulate(self, name: str, skipna: bool = True, **kwargs):
+        q: u.Quantity = self.to_quantity()
+        if name == "cumprod" and (self._unit is not u.dimensionless_unscaled):
+            raise TypeError(
+                "Cannot use 'accumulate' method on ufunc multiply with a UnitsExtensionArray of unit "
+                "{self._unit} instance as it would change the unit."
+            )
+
+        q: u.Quantity = self.to_quantity()
+
+        if name == "cummin":
+            result_q = np.minimum.accumulate(q, **kwargs)
+
+        elif name == "cummax":
+            result_q = np.maximum.accumulate(q, **kwargs)
+        else:
+            result_q = getattr(q, name)(**kwargs)
+
+        return self.__class__(result_q)
+
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         return self._value, None
 
