@@ -734,6 +734,14 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _from_factorized(cls, values, original) -> UnitsExtensionArray:
         return UnitsExtensionArray(values, original.dtype.unit)
 
+    def _values_for_json(self) -> np.ndarray:
+        values = self.to_quantity()
+        # Only the non-missing values gets cast to a string.
+        result = np.array(
+            [None if np.isnan(q) else q.to_string() for q in values], dtype=object
+        )
+        return result
+
     def value_counts(self, dropna=True) -> pd.Series:
         # Units preserved in the result index
         result = pd.Index(self._value).value_counts(dropna=dropna)
