@@ -226,7 +226,7 @@ def box_in_series(request):
 class TestAccumulateTests(base.BaseAccumulateTests):
     def _supports_accumulation(self, ser: pd.Series, op_name: str) -> bool:
 
-        if op_name == "cumprod":
+        if op_name == "cumprod" and (ser.dtype.unit is not u.dimensionless_unscaled):
             return False
         # Do we expect this accumulation to be supported for this dtype?
         # We default to assuming "no"; subclass authors should override here.
@@ -243,6 +243,11 @@ class TestAccumulateTests(base.BaseAccumulateTests):
         result = getattr(ser, op_name)(skipna=skipna).astype("float64")
         expected = getattr(alt, op_name)(skipna=skipna)
         tm.assert_series_equal(result, expected, check_dtype=False)
+
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_cumprod_dimensionless_unit(self, skipna):
+        data = UnitsExtensionArray([1, 2, 3], u.dimensionless_unscaled)
+        self.test_accumulate_series(data, "cumprod", skipna)
 
 
 class TestConstructors(base.BaseConstructorsTests):

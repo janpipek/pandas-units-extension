@@ -698,12 +698,12 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return self._from_scalars([result], dtype=self.dtype)
         return result
 
-    def _accumulate(
-        self, name: str, skipna: bool = True, **kwargs
-    ) -> UnitsExtensionArray:
-        if name == "cumprod":
+    def _accumulate(self, name: str, skipna: bool = True, **kwargs):
+        q: u.Quantity = self.to_quantity()
+        if name == "cumprod" and (self._unit is not u.dimensionless_unscaled):
             raise TypeError(
-                f"Cannot perform cumulative product 'cumprod' with type '{self.dtype}'"
+                "Cannot use 'accumulate' method on ufunc multiply with a UnitsExtensionArray of unit "
+                "{self._unit} instance as it would change the unit."
             )
 
         q: u.Quantity = self.to_quantity()
