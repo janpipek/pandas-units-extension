@@ -706,7 +706,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         return UnitsExtensionArray(values, original.dtype.unit)
 
     def _values_for_json(self) -> np.ndarray:
-        values = np.asarray(self)
+        values = self.to_quantity()
         # Only the non-missing values gets cast to a string.
         result = np.array(
             [None if np.isnan(q) else q.to_string() for q in values], dtype=object

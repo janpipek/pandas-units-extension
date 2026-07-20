@@ -851,28 +851,36 @@ class TestArrayInterface:
 
 
 class TestValuesForJson:
-    def test_simple_unit_strings(self):
-        arr = pd.array([1.0, 2.0, 3.0], dtype="unit[m]")
-        result = arr._values_for_json()
+    def test_simple_unit_strings(self, simple_data):
+        result = simple_data._values_for_json()
 
         assert isinstance(result, np.ndarray)
         assert list(result) == ["1.0 m", "2.0 m", "3.0 m"]
 
     def test_compound_unit_strings(self):
-        arr = pd.array([2.5, 10.0], dtype="unit[km / s]")
+        arr = UnitsExtensionArray([2.5, 10.0], u.km / u.s)
         result = arr._values_for_json()
         assert list(result) == ["2.5 km / s", "10.0 km / s"]
 
-    def test_missing_values_become_none_not_nan_string(self):
-        arr = pd.array([1.0, np.nan, 3.0], dtype="unit[m]")
+    def test_more_complex_compound_unit_strings(self):
+        arr = UnitsExtensionArray([1.0, 5.0], u.erg / (u.cm**2 * u.s))
         result = arr._values_for_json()
+        for s, original in zip(result, arr):
+            assert u.Quantity(s) == original
 
-        assert result[0] == "1.0 m"
-        assert result[1] is None
-        assert result[2] == "3.0 m"
+    def test_missing_values_become_none_not_nan_string(self, data_missing):
+        result = data_missing._values_for_json()
+
+        assert result[0] is None
+        assert result[1] == "1.0 m"
 
     def test_every_string_parses_back_to_the_original_quantity(self):
-        arr = pd.array([1.0, 2.5, 100.0], dtype="unit[km / s]")
+        arr = UnitsExtensionArray([1.0, 2.5, 100.0], u.km / u.s)
+        for s, original in zip(arr._values_for_json(), arr):
+            assert u.Quantity(s) == original
+
+    def test_complex_unit_strings_parse_back_to_the_original_quantity(self):
+        arr = UnitsExtensionArray([1.0, 2.5, 100.0], u.erg / (u.cm**2 * u.s))
         for s, original in zip(arr._values_for_json(), arr):
             assert u.Quantity(s) == original
 
@@ -896,4 +904,60 @@ class TestJsonRoundTrip:
         result = pd.read_json(StringIO(json_str))["length"].astype("unit")
 
         tm.assert_series_equal(result, expected)
+        assert result.array.dtype == expected.array.dtype
+
+    @pytest.mark.parametrize(
+        "unit,values",
+        [
+            pytest.param(u.m, [1.0, 2.0, 3.0], id="simple"),
+            pytest.param(u.km / u.s, [2.5, 10.0, 0.0], id="compound"),
+            pytest.param(
+                u.erg / (u.cm**2 * u.s * u.Hz),
+                [1e-17, 3.6e-18, 0.0],
+                id="spectral_flux_density",
+            ),
+            pytest.param(
+                u.kg * u.m**2 / u.s**3,
+                [1.0, 500.0, 0.0],
+                id="power_watt_like",
+            ),
+            pytest.param(
+                u.mol / (u.m**2 * u.s),
+                [1e-6, 2.4e-5, 0.0],
+                id="molar_flux",
+            ),
+            pytest.param(
+                u.J / (u.kg * u.K),
+                [4186.0, 2100.0, 0.0],
+                id="specific_heat_capacity",
+            ),
+            pytest.param(
+                u.erg * u.cm**3 / (u.s * u.sr * u.Hz**2),
+                [1.0, 2.0, 3.0],
+                id="deeply_nested_compound",
+            ),
+            pytest.param(u.dimensionless_unscaled, [1.0, 2.0, 3.0], id="dimensionless"),
+            pytest.param(u.deg_C, [20.0, -5.0, 100.0], id="deg_C"),
+        ],
+    )
+    def test_convert_to_json_and_back_various_units(self, unit, values):
+        expected = pd.Series(UnitsExtensionArray(values, unit), name="quantity")
+
+        json_str = expected.to_frame().to_json()
+        result = pd.read_json(StringIO(json_str))["quantity"].astype("unit")
+
+        tm.assert_series_equal(result, expected)
+        assert result.array.dtype == expected.array.dtype
+
+    @pytest.mark.xfail(
+        reason="Series.to_json does not call _values_for_json until pandas 3.1.0",
+        strict=True,
+    )
+    def test_convert_series_directly_to_json_and_back(self):
+        expected = pd.Series([1.0, 2.0, 3.0], dtype="unit[m]")
+
+        json_str = expected.to_json()
+        result = pd.read_json(StringIO(json_str), typ="series").astype("unit")
+
+        tm.assert_series_equal(result, expected, check_names=False)
         assert result.array.dtype == expected.array.dtype
