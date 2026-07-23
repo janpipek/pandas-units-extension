@@ -730,6 +730,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         return self._value, None
 
+    def _values_for_argsort(self) -> np.ndarray:
+        return self._value
+
     @classmethod
     def _from_factorized(cls, values, original) -> UnitsExtensionArray:
         return UnitsExtensionArray(values, original.dtype.unit)
