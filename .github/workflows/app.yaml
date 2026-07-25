@@ -54,12 +54,17 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras --dev
 
-      - name: Install nightly astropy and pandas
+      - name: Install nightly astropy
         run: >-
-          uv pip install --upgrade --pre
-          --extra-index-url https://pypi.anaconda.org/astropy/simple/astropy
-          --extra-index-url https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/pandas/
-          astropy pandas
+          uv pip install --pre --upgrade
+          --default-index https://pypi.anaconda.org/astropy/simple
+          astropy
+
+      - name: Install nightly pandas
+        run: >-
+          uv pip install --pre --upgrade
+          --default-index https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
+          pandas
 
       - name: Run pytest
         run: uv run pytest
