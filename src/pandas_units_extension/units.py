@@ -25,6 +25,10 @@ from pandas.api.indexers import check_array_indexer
 from pandas.api.types import is_array_like, is_list_like, is_scalar
 from pandas.compat import set_function_name
 from pandas.core import nanops
+from pandas.core.arraylike import (
+    dispatch_ufunc_with_out,
+    maybe_dispatch_ufunc_to_dunder_op,
+)
 from pandas.core.dtypes.generic import ABCDataFrame, ABCIndex, ABCSeries
 from pandas.core.indexers import (
     getitem_returns_view,
@@ -358,6 +362,73 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             arr.setflags(write=False)
 
         return arr
+
+    def __array_ufunc__(
+        self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any
+    ):
+        """
+        Apply a numpy ufunc by delegating the unit handling to Quantity.
+
+        UnitsExtensionArray inputs are converted to Quantities and the ufunc
+        is applied to those, so that astropy handles the unit logic
+        (e.g. np.sin of degrees). Quantity results are wrapped back into
+        a UnitsExtensionArray.
+
+        Parameters
+        ----------
+        ufunc : np.ufunc
+            The ufunc being applied, e.g. np.sin.
+        method : str
+            How it is invoked: "__call__", "reduce", "accumulate", "at", ...
+        *inputs : Any
+            The operands, self among them.
+        **kwargs : Any
+            Extra ufunc options, e.g. `out`.
+
+        Returns
+        -------
+        UnitsExtensionArray or Any
+            Quantity array results wrapped as UnitsExtensionArray; scalars,
+            booleans etc. returned as-is.
+        """
+        # Let pandas unbox Series/Index/DataFrame inputs and re-dispatch to us
+        if any(isinstance(x, (ABCSeries, ABCIndex, ABCDataFrame)) for x in inputs):
+            return NotImplemented
+
+        # Keep operator-like ufuncs (np.add, np.greater, ...) flowing through
+        # the dedicated dunder methods created by _create_arithmetic_method /
+        # _create_comparison_method, as the inherited implementation did.
+        result = maybe_dispatch_ufunc_to_dunder_op(
+            self, ufunc, method, *inputs, **kwargs
+        )
+        if result is not NotImplemented:
+            return result
+
+        if "out" in kwargs:
+            # Compute without `out`, then assign into the target
+            # (same strategy as pandas' own extension arrays).
+            return dispatch_ufunc_with_out(self, ufunc, method, *inputs, **kwargs)
+
+        if method == "at" and getattr(inputs[0], "_readonly", False):
+            # astropy cannot know about our read-only flag
+            raise ValueError("Cannot modify read-only array")
+
+        # No copy: `at` relies on the Quantity sharing memory with self
+        converted = [
+            as_quantity(x, copy=False) if isinstance(x, UnitsExtensionArray) else x
+            for x in inputs
+        ]
+        result = getattr(ufunc, method)(*converted, **kwargs)
+
+        def _wrap(res: Any) -> Any:
+            if isinstance(res, u.Quantity) and res.ndim > 0:
+                return type(self)(res)
+            return res
+
+        if isinstance(result, tuple):
+            # Some ufuncs (divmod, modf, frexp) return multiple outputs
+            return tuple(_wrap(item) for item in result)
+        return _wrap(result)
 
     def __contains__(self, item: object) -> bool | np.bool_:
         """
