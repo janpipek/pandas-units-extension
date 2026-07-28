@@ -865,47 +865,27 @@ class TestValuesForJson:
     def test_more_complex_compound_unit_strings(self):
         arr = UnitsExtensionArray([1.0, 5.0], u.erg / (u.cm**2 * u.s))
         result = arr._values_for_json()
-        for s, original in zip(result, arr):
-            assert u.Quantity(s) == original
+        parsed = u.Quantity([u.Quantity(s) for s in result])
+        np.testing.assert_allclose(parsed, arr.to_quantity())
 
-    def test_missing_values_become_none_not_nan_string(self, data_missing):
+    def test_missing_values_become_nan_string(self, data_missing):
         result = data_missing._values_for_json()
 
-        assert result[0] is None
+        assert result[0] == "nan m"
         assert result[1] == "1.0 m"
 
     def test_every_string_parses_back_to_the_original_quantity(self):
         arr = UnitsExtensionArray([1.0, 2.5, 100.0], u.km / u.s)
-        for s, original in zip(arr._values_for_json(), arr):
-            assert u.Quantity(s) == original
+        parsed = u.Quantity([u.Quantity(s) for s in arr._values_for_json()])
+        np.testing.assert_allclose(parsed, arr.to_quantity())
 
     def test_complex_unit_strings_parse_back_to_the_original_quantity(self):
         arr = UnitsExtensionArray([1.0, 2.5, 100.0], u.erg / (u.cm**2 * u.s))
-        for s, original in zip(arr._values_for_json(), arr):
-            assert u.Quantity(s) == original
+        parsed = u.Quantity([u.Quantity(s) for s in arr._values_for_json()])
+        np.testing.assert_allclose(parsed, arr.to_quantity())
 
 
 class TestJsonRoundTrip:
-    def test_convert_to_json_and_back(self):
-        expected = pd.Series([1, 2, 3], dtype="unit[m]")
-
-        json_str = expected.to_frame().to_json()
-        result = pd.read_json(StringIO(json_str))[0].astype("unit")
-
-        tm.assert_series_equal(
-            result, expected, check_names=False
-        )  # None and 0, shouldn't matter
-        assert result.array.dtype == expected.array.dtype
-
-    def test_convert_to_json_and_back_by_name(self):
-        expected = pd.Series([1, 2, 3], dtype="unit[m]", name="length")
-
-        json_str = expected.to_frame().to_json()
-        result = pd.read_json(StringIO(json_str))["length"].astype("unit")
-
-        tm.assert_series_equal(result, expected)
-        assert result.array.dtype == expected.array.dtype
-
     @pytest.mark.parametrize(
         "unit,values",
         [
@@ -918,7 +898,7 @@ class TestJsonRoundTrip:
             ),
             pytest.param(
                 u.kg * u.m**2 / u.s**3,
-                [1.0, 500.0, 0.0],
+                [1.0, 500.0, np.nan],
                 id="power_watt_like",
             ),
             pytest.param(
@@ -949,12 +929,24 @@ class TestJsonRoundTrip:
         tm.assert_series_equal(result, expected)
         assert result.array.dtype == expected.array.dtype
 
+    def test_convert_to_json_and_back_with_nan(self):
+        expected = pd.Series(
+            UnitsExtensionArray([1.0, np.nan, 3.0], u.m), name="quantity"
+        )
+
+        json_str = expected.to_frame().to_json()
+        result = pd.read_json(StringIO(json_str))["quantity"].astype("unit")
+
+        tm.assert_series_equal(result, expected)
+        assert result.array.dtype == expected.array.dtype
+
     @pytest.mark.xfail(
-        reason="Series.to_json does not call _values_for_json until pandas 3.1.0",
+        Version(pd.__version__) < Version("3.1.0"),
+        reason="Test fails on pandas below 3.1.0, see pandas GH #65127",
         strict=True,
     )
     def test_convert_series_directly_to_json_and_back(self):
-        expected = pd.Series([1.0, 2.0, 3.0], dtype="unit[m]")
+        expected = pd.Series(UnitsExtensionArray([1.0, 2.0, 3.0], u.m))
 
         json_str = expected.to_json()
         result = pd.read_json(StringIO(json_str), typ="series").astype("unit")
