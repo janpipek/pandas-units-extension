@@ -682,25 +682,15 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 q = q[~np.isnan(q)]
             result: u.Quantity = getattr(q, name)(**kwargs)
 
-        # Not implemented by astropy, but should be migrated to the top block of code when they do:
-        elif name == 'skew':
-            # Recycle methods from numpy and calculate Adjusted Fisher-Pearson Standardized Moment Coefficient:
-
-            mean = np.mean(self._value, **kwargs)
-            median = np.median(self._value, **kwargs)
-            standard_deviation = np.std(self._value, **kwargs)
-            result_without_dim = (3 * (mean - median)) / standard_deviation
-            result = u.Quantity(result_without_dim, u.dimensionless_unscaled)
-
-        elif name == "kurt":
-            pass
-
-        # This methods require a little ppost-processing for the nans:
-        elif name in ("median", "sem"):
+        # Not implemented by astropy: Recycle methods from pandas to manage nans and manage the scale correctly:
+        elif name in ("median", "sem", "skew", "kurt"):
             data = self._value
-            method = getattr(nanops, "nan" + name)
+            method = getattr(nanops, "nan" + name)  # use pd.nanops.nanskew, pd.nanops.nankurt, etc
             result_without_dim = method(data, skipna=skipna)
-            result = u.Quantity(result_without_dim, self._unit)
+            if name in ("skew", "kurt"):
+                result = u.Quantity(result_without_dim, u.dimensionless_unscaled)
+            else:
+                result = u.Quantity(result_without_dim, self._unit)
 
         elif name in ("any", "all", "prod"):
             raise TypeError(f"Cannot perform '{name}' with type '{self.dtype}'")
