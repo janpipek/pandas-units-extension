@@ -654,6 +654,15 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
 
         return set_function_name(_binop, op_name, cls)
 
+    def __neg__(self):
+        return UnitsExtensionArray._simple_new(-self._value, self.dtype)
+
+    def __pos__(self) -> UnitsExtensionArray:
+        return self.copy()
+
+    def __abs__(self):
+        return UnitsExtensionArray._simple_new(np.abs(self._value), self.dtype)
+
     def copy(self) -> UnitsExtensionArray:
         return UnitsExtensionArray._simple_new(self._value.copy(), self.dtype)
 
@@ -703,12 +712,39 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return self._from_scalars([result], dtype=self.dtype)
         return result
 
+    def _accumulate(self, name: str, skipna: bool = True, **kwargs):
+        q: u.Quantity = self.to_quantity()
+        if name == "cumprod" and (self._unit is not u.dimensionless_unscaled):
+            raise TypeError(
+                "Cannot use 'accumulate' method on ufunc multiply with a UnitsExtensionArray of unit "
+                "{self._unit} instance as it would change the unit."
+            )
+
+        q: u.Quantity = self.to_quantity()
+
+        if name == "cummin":
+            result_q = np.minimum.accumulate(q, **kwargs)
+
+        elif name == "cummax":
+            result_q = np.maximum.accumulate(q, **kwargs)
+        else:
+            result_q = getattr(q, name)(**kwargs)
+
+        return self.__class__(result_q)
+
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         return self._value, None
+
+    def _values_for_argsort(self) -> np.ndarray:
+        return self._value
 
     @classmethod
     def _from_factorized(cls, values, original) -> UnitsExtensionArray:
         return UnitsExtensionArray(values, original.dtype.unit)
+
+    def _values_for_json(self) -> np.ndarray:
+        result = self._value.astype(str) + f" {self._unit}"
+        return result
 
     def value_counts(self, dropna=True) -> pd.Series:
         # Units preserved in the result index
