@@ -4,6 +4,8 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
 
 jobs:
   test:
@@ -35,6 +37,37 @@ jobs:
 
       - name: Run pytest
         run: uv run pytest
+
+  nightly-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.2"
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Install nightly astropy
+        run: >-
+          uv pip install --pre --upgrade
+          --default-index https://pypi.anaconda.org/astropy/simple
+          astropy
+
+      - name: Install nightly pandas
+        run: >-
+          uv pip install --pre --upgrade
+          --default-index https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
+          pandas
+
+      - name: Run pytest
+        run: uv run --no-sync pytest
 
   pre-commit:
     runs-on: ubuntu-latest
