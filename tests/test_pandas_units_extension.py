@@ -769,7 +769,7 @@ class TestVarious(BaseExtensionTests):
     )
     def test_add_new_value_with_different_unit(self, value, expected):
         s1 = pd.Series(["1 m"], dtype="unit")
-        s1.at[1] = value
+        s1.loc[1] = value
         tm.assert_series_equal(expected, s1)
 
     @pytest.mark.parametrize(
