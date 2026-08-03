@@ -379,13 +379,17 @@ class TestReshaping(base.BaseReshapingTests):
 class TestReduce(base.BaseReduceTests):
     def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
         # List all supported numeric reductions
-        return op_name in {"sum", "max", "min", "mean", "std", "var", "median"}
+        return op_name in {"sum", "max", "min", "mean", "std", "var", "median", "sem", "skew", "kurt"}
 
     def _get_expected_reduction_dtype(self, arr, op_name: str, skipna: bool):
-        # Besides `var` all reductions retain the same unit so same dtype.
-        # However `var` returns a squared unit and the new expected dtype is calculated and returned
+        # Besides `var`, `skew`, and `kurt` all reductions retain the same unit so same dtype.
+        # `var` returns a squared unit and the new expected dtype is calculated and returned
         if op_name in {"var"}:
             return UnitsDtype(arr._unit**2)
+
+        # `skew` and `kurt` are dimensionless
+        if op_name in {"skew", "kurt"}:
+            return UnitsDtype(u.dimensionless_unscaled)
         return arr.dtype
 
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
@@ -420,6 +424,12 @@ class TestReduce(base.BaseReduceTests):
 
     def test_var(self, data):
         assert np.allclose(pd.Series(data).var() / (u.m**2), 0.4555555555555555)
+
+    def test_skew(self, data):
+        assert np.allclose(pd.Series(data).skew(), -2.276596265448445)
+
+    def test_kurt(self, data):
+        assert np.allclose(pd.Series(data).kurt(), 4.765020820939921)
 
     def test_unsupported(self, data):
         for method in ["any", "all", "prod"]:
