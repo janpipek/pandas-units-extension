@@ -67,7 +67,7 @@ jobs:
           pandas
 
       - name: Run pytest
-        run: uv run pytest
+        run: uv run --no-sync pytest
 
   pre-commit:
     runs-on: ubuntu-latest
