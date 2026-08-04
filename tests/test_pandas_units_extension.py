@@ -892,6 +892,8 @@ def test_interpolate():
     result = s.interpolate()
     expected = pd.Series([1.0, 2.0, 3.0, 4.0], dtype="unit[m]")
     pd.testing.assert_series_equal(result, expected)
+
+
 class TestValuesForJson:
     def test_simple_unit_strings(self, simple_data):
         result = simple_data._values_for_json()
