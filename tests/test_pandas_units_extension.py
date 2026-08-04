@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pandas.testing as tm
 import pytest
+from io import StringIO
 from packaging.version import Version
 from pandas.core import ops, roperator
 from pandas.tests.extension import base
@@ -207,6 +208,11 @@ def all_numeric_reductions(request):
 _all_boolean_reductions = ["all", "any"]
 
 
+@pytest.fixture(params=["cumsum", "cumprod", "cummin", "cummax"])
+def all_numeric_accumulations(request):
+    return request.param
+
+
 @pytest.fixture(params=_all_boolean_reductions)
 def all_boolean_reductions(request):
     return request.param
@@ -216,6 +222,33 @@ def all_boolean_reductions(request):
 def box_in_series(request):
     """Whether to box the data in a Series"""
     return request.param
+
+
+class TestAccumulateTests(base.BaseAccumulateTests):
+    def _supports_accumulation(self, ser: pd.Series, op_name: str) -> bool:
+
+        if op_name == "cumprod" and (ser.dtype.unit is not u.dimensionless_unscaled):
+            return False
+        # Do we expect this accumulation to be supported for this dtype?
+        # We default to assuming "no"; subclass authors should override here.
+        return True
+
+    def check_accumulate(self, ser: pd.Series, op_name: str, skipna: bool):
+        try:
+            alt = ser.astype("float64")
+        except (TypeError, ValueError):
+            # e.g. Period can't be cast to float64 (TypeError)
+            #      String can't be cast to float64 (ValueError)
+            alt = ser.astype(object)
+
+        result = getattr(ser, op_name)(skipna=skipna).astype("float64")
+        expected = getattr(alt, op_name)(skipna=skipna)
+        tm.assert_series_equal(result, expected, check_dtype=False)
+
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_cumprod_dimensionless_unit(self, skipna):
+        data = UnitsExtensionArray([1, 2, 3], u.dimensionless_unscaled)
+        self.test_accumulate_series(data, "cumprod", skipna)
 
 
 class TestConstructors(base.BaseConstructorsTests):
@@ -736,7 +769,7 @@ class TestVarious(BaseExtensionTests):
     )
     def test_add_new_value_with_different_unit(self, value, expected):
         s1 = pd.Series(["1 m"], dtype="unit")
-        s1.at[1] = value
+        s1.loc[1] = value
         tm.assert_series_equal(expected, s1)
 
     @pytest.mark.parametrize(
@@ -859,3 +892,106 @@ def test_interpolate():
     result = s.interpolate()
     expected = pd.Series([1.0, 2.0, 3.0, 4.0], dtype="unit[m]")
     pd.testing.assert_series_equal(result, expected)
+class TestValuesForJson:
+    def test_simple_unit_strings(self, simple_data):
+        result = simple_data._values_for_json()
+
+        assert isinstance(result, np.ndarray)
+        assert list(result) == ["1.0 m", "2.0 m", "3.0 m"]
+
+    def test_compound_unit_strings(self):
+        arr = UnitsExtensionArray([2.5, 10.0], u.km / u.s)
+        result = arr._values_for_json()
+        assert list(result) == ["2.5 km / s", "10.0 km / s"]
+
+    def test_more_complex_compound_unit_strings(self):
+        arr = UnitsExtensionArray([1.0, 5.0], u.erg / (u.cm**2 * u.s))
+        result = arr._values_for_json()
+        parsed = u.Quantity([u.Quantity(s) for s in result])
+        np.testing.assert_allclose(parsed, arr.to_quantity())
+
+    def test_missing_values_become_nan_string(self, data_missing):
+        result = data_missing._values_for_json()
+
+        assert result[0] == "nan m"
+        assert result[1] == "1.0 m"
+
+    def test_every_string_parses_back_to_the_original_quantity(self):
+        arr = UnitsExtensionArray([1.0, 2.5, 100.0], u.km / u.s)
+        parsed = u.Quantity([u.Quantity(s) for s in arr._values_for_json()])
+        np.testing.assert_allclose(parsed, arr.to_quantity())
+
+    def test_complex_unit_strings_parse_back_to_the_original_quantity(self):
+        arr = UnitsExtensionArray([1.0, 2.5, 100.0], u.erg / (u.cm**2 * u.s))
+        parsed = u.Quantity([u.Quantity(s) for s in arr._values_for_json()])
+        np.testing.assert_allclose(parsed, arr.to_quantity())
+
+
+class TestJsonRoundTrip:
+    @pytest.mark.parametrize(
+        "unit,values",
+        [
+            pytest.param(u.m, [1.0, 2.0, 3.0], id="simple"),
+            pytest.param(u.km / u.s, [2.5, 10.0, 0.0], id="compound"),
+            pytest.param(
+                u.erg / (u.cm**2 * u.s * u.Hz),
+                [1e-17, 3.6e-18, 0.0],
+                id="spectral_flux_density",
+            ),
+            pytest.param(
+                u.kg * u.m**2 / u.s**3,
+                [1.0, 500.0, np.nan],
+                id="power_watt_like",
+            ),
+            pytest.param(
+                u.mol / (u.m**2 * u.s),
+                [1e-6, 2.4e-5, 0.0],
+                id="molar_flux",
+            ),
+            pytest.param(
+                u.J / (u.kg * u.K),
+                [4186.0, 2100.0, 0.0],
+                id="specific_heat_capacity",
+            ),
+            pytest.param(
+                u.erg * u.cm**3 / (u.s * u.sr * u.Hz**2),
+                [1.0, 2.0, 3.0],
+                id="deeply_nested_compound",
+            ),
+            pytest.param(u.dimensionless_unscaled, [1.0, 2.0, 3.0], id="dimensionless"),
+            pytest.param(u.deg_C, [20.0, -5.0, 100.0], id="deg_C"),
+        ],
+    )
+    def test_convert_to_json_and_back_various_units(self, unit, values):
+        expected = pd.Series(UnitsExtensionArray(values, unit), name="quantity")
+
+        json_str = expected.to_frame().to_json()
+        result = pd.read_json(StringIO(json_str))["quantity"].astype("unit")
+
+        tm.assert_series_equal(result, expected)
+        assert result.array.dtype == expected.array.dtype
+
+    def test_convert_to_json_and_back_with_nan(self):
+        expected = pd.Series(
+            UnitsExtensionArray([1.0, np.nan, 3.0], u.m), name="quantity"
+        )
+
+        json_str = expected.to_frame().to_json()
+        result = pd.read_json(StringIO(json_str))["quantity"].astype("unit")
+
+        tm.assert_series_equal(result, expected)
+        assert result.array.dtype == expected.array.dtype
+
+    @pytest.mark.xfail(
+        Version(pd.__version__) < Version("3.1.0"),
+        reason="Test fails on pandas below 3.1.0, see pandas GH #65127",
+        strict=True,
+    )
+    def test_convert_series_directly_to_json_and_back(self):
+        expected = pd.Series(UnitsExtensionArray([1.0, 2.0, 3.0], u.m))
+
+        json_str = expected.to_json()
+        result = pd.read_json(StringIO(json_str), typ="series").astype("unit")
+
+        tm.assert_series_equal(result, expected, check_names=False)
+        assert result.array.dtype == expected.array.dtype
