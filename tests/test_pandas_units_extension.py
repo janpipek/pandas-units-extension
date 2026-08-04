@@ -851,3 +851,11 @@ class TestArrayInterface:
     def test_disallowed_conversions(self, data, dtype):
         with pytest.raises(ValueError):
             np.array(data, dtype=dtype, copy=False)
+
+
+def test_interpolate():
+    # Verify that interpolation fills  missing values and retaining the unit dtype
+    s = pd.Series([1.0, 2.0, None, 4.0], dtype="unit[m]")
+    result = s.interpolate()
+    expected = pd.Series([1.0, 2.0, 3.0, 4.0], dtype="unit[m]")
+    pd.testing.assert_series_equal(result, expected)
