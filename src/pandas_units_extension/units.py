@@ -595,7 +595,7 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def interpolate(
         self,
         *,
-        method: "linear",
+        method: str = "linear",
         axis: int = 0,
         index=None,
         limit=None,
