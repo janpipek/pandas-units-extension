@@ -595,24 +595,27 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def interpolate(
         self,
         *,
-        method: str = "linear",
-        axis: int = 0,
-        index=None,
-        limit=None,
-        limit_direction="forward",
-        limit_area=None,
-        copy: bool = True,
+        method: str,
+        axis: int,
+        index,
+        limit,
+        limit_direction,
+        limit_area,
+        copy: bool,
         **kwargs,
-    ) -> UnitsExtensionArray:
-        s = pd.Series(self._value, index=index)
-        interpolated = s.interpolate(
+    ):
+        arr = pd.array(self, dtype=float)
+        interpolated = arr.interpolate(
             method=method,
+            axis=axis,
+            index=index,
             limit=limit,
             limit_direction=limit_direction,
             limit_area=limit_area,
+            copy=copy,
             **kwargs,
         )
-        return self._simple_new(interpolated.to_numpy(), self.dtype)
+        return self._simple_new(interpolated, self.dtype)
 
     @classmethod
     def _create_arithmetic_method(cls, op):
