@@ -371,6 +371,21 @@ class TestMethods(base.BaseMethodsTests):
         )
         tm.assert_series_equal(result, expected)
 
+    def test_interpolate(self):
+        # Verify that interpolation fills  missing values and retaining the unit dtype
+        arr = UnitsExtensionArray([1.0, np.nan, 3.0], u.m)
+        result = arr.interpolate(
+            method="linear",
+            axis=0,
+            index=pd.Index([0, 1, 2]),
+            limit=None,
+            limit_direction="forward",
+            limit_area=None,
+            copy=True,
+        )
+        expected = UnitsExtensionArray([1.0, 2.0, 3.0], u.m)
+        tm.assert_extension_array_equal(result, expected)
+
 
 class TestReshaping(base.BaseReshapingTests):
     pass
