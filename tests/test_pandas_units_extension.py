@@ -899,6 +899,8 @@ class TestIndex(BaseIndexTests):
 
 class TestDim2Compat(Dim2CompatTests):
     pass
+
+
 class TestValuesForJson:
     def test_simple_unit_strings(self, simple_data):
         result = simple_data._values_for_json()
