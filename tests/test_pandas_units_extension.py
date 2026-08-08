@@ -31,6 +31,7 @@ from pandas_units_extension import (
     UnitsSeriesAccessor,
     as_quantity,
 )
+from pandas.tests.extension.base import BaseIndexTests, Dim2CompatTests
 
 _all_arithmetic_operators: list[str] = [
     "__add__",
@@ -370,6 +371,12 @@ class TestMethods(base.BaseMethodsTests):
             name="count",
         )
         tm.assert_series_equal(result, expected)
+
+    @pytest.mark.xfail(
+        reason="Astropy Quantity cannot be compared with pandas Infinity objects during rank"
+    )
+    def test_rank_missing(self, data_missing_for_sorting, na_option):
+        super().test_rank_missing(data_missing_for_sorting, na_option)
 
 
 class TestReshaping(base.BaseReshapingTests):
@@ -884,6 +891,14 @@ class TestArrayInterface:
     def test_disallowed_conversions(self, data, dtype):
         with pytest.raises(ValueError):
             np.array(data, dtype=dtype, copy=False)
+
+
+class TestIndex(BaseIndexTests):
+    pass
+
+
+class TestDim2Compat(Dim2CompatTests):
+    pass
 
 
 class TestValuesForJson:
