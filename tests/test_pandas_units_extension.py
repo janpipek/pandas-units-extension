@@ -190,8 +190,7 @@ def data_repeated(data):
 
 
 # prod forbidden
-# kurt, skew not implemented
-_all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median"]
+_all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median", "kurt", "skew", "sem"]
 
 
 @pytest.fixture
