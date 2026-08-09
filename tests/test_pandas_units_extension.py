@@ -190,7 +190,18 @@ def data_repeated(data):
 
 
 # prod forbidden
-_all_numeric_reductions = ["sum", "max", "min", "mean", "std", "var", "median", "kurt", "skew", "sem"]
+_all_numeric_reductions = [
+    "sum",
+    "max",
+    "min",
+    "mean",
+    "std",
+    "var",
+    "median",
+    "kurt",
+    "skew",
+    "sem",
+]
 
 
 @pytest.fixture
@@ -378,7 +389,18 @@ class TestReshaping(base.BaseReshapingTests):
 class TestReduce(base.BaseReduceTests):
     def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
         # List all supported numeric reductions
-        return op_name in {"sum", "max", "min", "mean", "std", "var", "median", "sem", "skew", "kurt"}
+        return op_name in {
+            "sum",
+            "max",
+            "min",
+            "mean",
+            "std",
+            "var",
+            "median",
+            "sem",
+            "skew",
+            "kurt",
+        }
 
     def _get_expected_reduction_dtype(self, arr, op_name: str, skipna: bool):
         # Besides `var`, `skew`, and `kurt` all reductions retain the same unit so same dtype.

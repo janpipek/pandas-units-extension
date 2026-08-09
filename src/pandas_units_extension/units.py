@@ -685,7 +685,9 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
         # Not implemented by astropy: Recycle methods from pandas to manage nans and manage the units correctly:
         elif name in ("median", "sem", "skew", "kurt"):
             data = self._value
-            method = getattr(nanops, "nan" + name)  # use pd.nanops.nanskew, pd.nanops.nankurt, etc
+            method = getattr(
+                nanops, "nan" + name
+            )  # use pd.nanops.nanskew, pd.nanops.nankurt, etc
             result_without_dim = method(data, skipna=skipna)
             if name in ("skew", "kurt"):
                 result = u.Quantity(result_without_dim, u.dimensionless_unscaled)
