@@ -592,6 +592,31 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def isna(self):
         return np.isnan(self._value)
 
+    def interpolate(
+        self,
+        *,
+        method: str,
+        axis: int,
+        index,
+        limit,
+        limit_direction,
+        limit_area,
+        copy: bool,
+        **kwargs,
+    ):
+        arr = pd.array(self, dtype=float)
+        interpolated = arr.interpolate(
+            method=method,
+            axis=axis,
+            index=index,
+            limit=limit,
+            limit_direction=limit_direction,
+            limit_area=limit_area,
+            copy=copy,
+            **kwargs,
+        )
+        return self._simple_new(interpolated, self.dtype)
+
     @classmethod
     def _create_arithmetic_method(cls, op):
         op_name = f"__{op.__name__}__"
