@@ -15,6 +15,7 @@ from pandas.tests.extension import base
 from pandas.tests.extension.base import BaseOpsUtil
 from pandas.tests.extension.base.base import BaseExtensionTests
 from pandas.tests.extension.conftest import (
+    all_reductions,
     as_array,
     as_frame,
     as_series,
@@ -84,6 +85,13 @@ def using_nan_is_na(request):
     opt = request.param
     with pd.option_context("future.distinguish_nan_and_na", not opt):
         yield opt
+
+@pytest.fixture(params=[True, False])
+def skipna(request):
+    """
+    Boolean 'skipna' parameter.
+    """
+    return request.param
 
 
 @pytest.fixture
@@ -191,6 +199,7 @@ def data_repeated(data):
 
 # prod forbidden
 _all_numeric_reductions = [
+    "count",
     "sum",
     "max",
     "min",
@@ -302,7 +311,7 @@ class TestDtype(base.BaseDtypeTests):
 
 class TestGroupBy(base.BaseGroupbyTests):
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
     )
     def test_groupby_agg_extension(self, data_for_grouping):
@@ -405,6 +414,7 @@ class TestReduce(base.BaseReduceTests):
     def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
         # List all supported numeric reductions
         return op_name in {
+            "count",
             "sum",
             "max",
             "min",
@@ -566,7 +576,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
-    Version(pd.__version__) < Version("3.1.0"),
+    Version(pd.__version__).release < (3, 1, 0),
     reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
 )
 
@@ -797,7 +807,7 @@ class TestVarious(BaseExtensionTests):
         tm.assert_series_equal(expected, concatenated)
 
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
     )
     @pytest.mark.parametrize(
@@ -1023,15 +1033,14 @@ class TestJsonRoundTrip:
         assert result.array.dtype == expected.array.dtype
 
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #65127",
-        strict=True,
     )
     def test_convert_series_directly_to_json_and_back(self):
         expected = pd.Series(UnitsExtensionArray([1.0, 2.0, 3.0], u.m))
 
         json_str = expected.to_json()
-        result = pd.read_json(StringIO(json_str), typ="series").astype("unit")
+        result = pd.read_json(StringIO(json_str), typ="series", dtype=expected.dtype)
 
         tm.assert_series_equal(result, expected, check_names=False)
         assert result.array.dtype == expected.array.dtype
