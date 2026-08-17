@@ -592,6 +592,31 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     def isna(self):
         return np.isnan(self._value)
 
+    def interpolate(
+        self,
+        *,
+        method: str,
+        axis: int,
+        index,
+        limit,
+        limit_direction,
+        limit_area,
+        copy: bool,
+        **kwargs,
+    ):
+        arr = pd.array(self, dtype=float)
+        interpolated = arr.interpolate(
+            method=method,
+            axis=axis,
+            index=index,
+            limit=limit,
+            limit_direction=limit_direction,
+            limit_area=limit_area,
+            copy=copy,
+            **kwargs,
+        )
+        return self._simple_new(interpolated, self.dtype)
+
     @classmethod
     def _create_arithmetic_method(cls, op):
         op_name = f"__{op.__name__}__"
@@ -671,14 +696,8 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
     ) -> UnitsExtensionArray | u.Quantity:
         # Borrowed from IntegerArray
 
-        to_proxy = ("min", "max", "sum", "mean", "std", "var")
-        to_nanops = ("median", "sem")
-        to_error = ("any", "all", "prod")
-
-        # TODO: Check the dimension of this
-        to_implement_yet = ("kurt", "skew")
-
-        if name in to_proxy:
+        # Implemented by astropy:
+        if name in ("min", "max", "sum", "mean", "std", "var"):
             q: u.Quantity = self.to_quantity()
             if name in ["std", "var"]:
                 kwargs = {"ddof": kwargs.pop("ddof", 1)}
@@ -688,17 +707,20 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
                 q = q[~np.isnan(q)]
             result: u.Quantity = getattr(q, name)(**kwargs)
 
-        elif name in to_nanops:
+        # Not implemented by astropy: Recycle methods from pandas to manage nans and manage the units correctly:
+        elif name in ("median", "sem", "skew", "kurt"):
             data = self._value
-            method = getattr(nanops, "nan" + name)
+            method = getattr(
+                nanops, "nan" + name
+            )  # use pd.nanops.nanskew, pd.nanops.nankurt, etc
             result_without_dim = method(data, skipna=skipna)
-            result = u.Quantity(result_without_dim, self._unit)
+            if name in ("skew", "kurt"):
+                result = u.Quantity(result_without_dim, u.dimensionless_unscaled)
+            else:
+                result = u.Quantity(result_without_dim, self._unit)
 
-        elif name in to_error:
+        elif name in ("any", "all", "prod"):
             raise TypeError(f"Cannot perform '{name}' with type '{self.dtype}'")
-
-        elif name in to_implement_yet:
-            raise NotImplementedError
 
         else:
             raise ValueError(f"Invalid reduce operation: '{name}'")
@@ -707,12 +729,39 @@ class UnitsExtensionArray(ExtensionArray, ExtensionScalarOpsMixin):
             return self._from_scalars([result], dtype=self.dtype)
         return result
 
+    def _accumulate(self, name: str, skipna: bool = True, **kwargs):
+        q: u.Quantity = self.to_quantity()
+        if name == "cumprod" and (self._unit is not u.dimensionless_unscaled):
+            raise TypeError(
+                "Cannot use 'accumulate' method on ufunc multiply with a UnitsExtensionArray of unit "
+                "{self._unit} instance as it would change the unit."
+            )
+
+        q: u.Quantity = self.to_quantity()
+
+        if name == "cummin":
+            result_q = np.minimum.accumulate(q, **kwargs)
+
+        elif name == "cummax":
+            result_q = np.maximum.accumulate(q, **kwargs)
+        else:
+            result_q = getattr(q, name)(**kwargs)
+
+        return self.__class__(result_q)
+
     def _values_for_factorize(self) -> tuple[np.ndarray, Any]:
         return self._value, None
+
+    def _values_for_argsort(self) -> np.ndarray:
+        return self._value
 
     @classmethod
     def _from_factorized(cls, values, original) -> UnitsExtensionArray:
         return UnitsExtensionArray(values, original.dtype.unit)
+
+    def _values_for_json(self) -> np.ndarray:
+        result = self._value.astype(str) + f" {self._unit}"
+        return result
 
     def value_counts(self, dropna=True) -> pd.Series:
         # Units preserved in the result index
