@@ -945,19 +945,19 @@ class TestUfuncs:
 
     # Ufunc groups taken from astropy's registry, so that new astropy
     # additions get tested automatically. Sorted for deterministic test ids.
-    ANGLE_FUNCS = sorted(
+    ANGLE_UFUNCS = sorted(
         radian_to_dimensionless_ufuncs
         + degree_to_radian_ufuncs
         + radian_to_degree_ufuncs,
         key=lambda uf: uf.__name__,
     )
-    DIMENSIONLESS_FUNCS = sorted(
+    DIMENSIONLESS_UFUNCS = sorted(
         dimensionless_to_radian_ufuncs + dimensionless_to_dimensionless_ufuncs,
         key=lambda uf: uf.__name__,
     )
-    INVARIANT_FUNCS = sorted(set(invariant_ufuncs), key=lambda uf: uf.__name__)
+    INVARIANT_UFUNCS = sorted(set(invariant_ufuncs), key=lambda uf: uf.__name__)
 
-    @pytest.mark.parametrize("func", ANGLE_FUNCS)
+    @pytest.mark.parametrize("ufunc", ANGLE_UFUNCS)
     @pytest.mark.parametrize(
         "angles",
         [
@@ -965,25 +965,25 @@ class TestUfuncs:
             pytest.param([0, np.pi / 6, np.pi / 4, np.pi / 3] * u.rad, id="rad"),
         ],
     )
-    def test_angle_funcs_match_quantity_behaviour(self, func, angles):
-        result = func(pd.Series(angles, dtype="unit"))
-        expected = pd.Series(UnitsExtensionArray(func(angles)))
+    def test_angle_ufuncs(self, ufunc, angles):
+        result = ufunc(pd.Series(angles, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(ufunc(angles)))
         tm.assert_series_equal(result, expected)
 
-    @pytest.mark.parametrize("func", DIMENSIONLESS_FUNCS)
-    def test_dimensionless_funcs_match_quantity_behaviour(self, func):
+    @pytest.mark.parametrize("ufunc", DIMENSIONLESS_UFUNCS)
+    def test_dimensionless_ufuncs(self, ufunc):
         # arccosh is only defined for values >= 1, the others accept (0, 1)
-        values = [1.5, 2, 3] if func is np.arccosh else [0.25, 0.5, 0.75]
+        values = [1.5, 2, 3] if ufunc is np.arccosh else [0.25, 0.5, 0.75]
         q = values * u.dimensionless_unscaled
-        result = func(pd.Series(q, dtype="unit"))
-        expected = pd.Series(UnitsExtensionArray(func(q)))
+        result = ufunc(pd.Series(q, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(ufunc(q)))
         tm.assert_series_equal(result, expected)
 
-    @pytest.mark.parametrize("func", INVARIANT_FUNCS)
-    def test_invariant_funcs_match_quantity_behaviour(self, func):
+    @pytest.mark.parametrize("ufunc", INVARIANT_UFUNCS)
+    def test_invariant_ufuncs(self, ufunc):
         q = [-1.5, 0, 2.5] * u.m
-        result = func(pd.Series(q, dtype="unit"))
-        expected = pd.Series(UnitsExtensionArray(func(q)))
+        result = ufunc(pd.Series(q, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(ufunc(q)))
         tm.assert_series_equal(result, expected)
 
     def test_sqrt_changes_unit(self):
@@ -992,11 +992,11 @@ class TestUfuncs:
         expected = pd.Series([2, 3, 4], dtype="unit[m]")
         tm.assert_series_equal(result, expected)
 
-    @pytest.mark.parametrize("func", ANGLE_FUNCS)
-    def test_incompatible_unit_raises(self, func):
+    @pytest.mark.parametrize("ufunc", ANGLE_UFUNCS)
+    def test_incompatible_unit_raises(self, ufunc):
         lengths = pd.Series([1, 2] * u.m, dtype="unit")
         with pytest.raises(u.UnitsError):
-            func(lengths)
+            ufunc(lengths)
 
     def test_at_respects_readonly(self):
         """np.add.at writes in place; it must respect the read-only flag."""
