@@ -4,15 +4,9 @@ from __future__ import annotations
 import operator
 
 import astropy.units as u
-from astropy.units.quantity_helper.helpers import (
-    degree_to_radian_ufuncs,
-    dimensionless_to_dimensionless_ufuncs,
-    dimensionless_to_radian_ufuncs,
-    invariant_ufuncs,
-    radian_to_degree_ufuncs,
-    radian_to_dimensionless_ufuncs,
-)
+import astropy.units.quantity_helper as qh
 import numpy as np
+import numpy._core.umath as np_umath
 import pandas as pd
 import pandas.testing as tm
 import pytest
@@ -945,17 +939,33 @@ class TestUfuncs:
 
     # Ufunc groups taken from astropy's registry, so that new astropy
     # additions get tested automatically. Sorted for deterministic test ids.
+
+    # SINGLE ARGUMENT UFUNCS
+    ONEARG_TEST_UFUNC = sorted(
+        qh.helpers.onearg_test_ufuncs, key=lambda uf: uf.__name__
+    )
     ANGLE_UFUNCS = sorted(
-        radian_to_dimensionless_ufuncs
-        + degree_to_radian_ufuncs
-        + radian_to_degree_ufuncs,
+        qh.helpers.radian_to_dimensionless_ufuncs
+        + qh.helpers.degree_to_radian_ufuncs
+        + qh.helpers.radian_to_degree_ufuncs,
         key=lambda uf: uf.__name__,
     )
     DIMENSIONLESS_UFUNCS = sorted(
-        dimensionless_to_radian_ufuncs + dimensionless_to_dimensionless_ufuncs,
+        qh.helpers.dimensionless_to_radian_ufuncs
+        + qh.helpers.dimensionless_to_dimensionless_ufuncs,
         key=lambda uf: uf.__name__,
     )
-    INVARIANT_UFUNCS = sorted(set(invariant_ufuncs), key=lambda uf: uf.__name__)
+    INVARIANT_UFUNCS = sorted(
+        set(qh.helpers.invariant_ufuncs), key=lambda uf: uf.__name__
+    )
+
+    @pytest.mark.parametrize("ufunc", ONEARG_TEST_UFUNC)
+    def test_onearg_test_ufuncs(self, ufunc):
+        """ufuncs that do not care about the unit and do not return a Quantity"""
+        q = [1, 2, 3] * u.m
+        result = ufunc(pd.Series(q, dtype="unit"))
+        expected = pd.Series(ufunc(q))
+        tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("ufunc", ANGLE_UFUNCS)
     @pytest.mark.parametrize(
@@ -966,12 +976,14 @@ class TestUfuncs:
         ],
     )
     def test_angle_ufuncs(self, ufunc, angles):
+        """ufuncs that accept any angle units"""
         result = ufunc(pd.Series(angles, dtype="unit"))
         expected = pd.Series(UnitsExtensionArray(ufunc(angles)))
         tm.assert_series_equal(result, expected)
 
     @pytest.mark.parametrize("ufunc", DIMENSIONLESS_UFUNCS)
     def test_dimensionless_ufuncs(self, ufunc):
+        """ufuncs that accept only dimensionless Quantities"""
         # arccosh is only defined for values >= 1, the others accept (0, 1)
         values = [1.5, 2, 3] if ufunc is np.arccosh else [0.25, 0.5, 0.75]
         q = values * u.dimensionless_unscaled
@@ -981,17 +993,250 @@ class TestUfuncs:
 
     @pytest.mark.parametrize("ufunc", INVARIANT_UFUNCS)
     def test_invariant_ufuncs(self, ufunc):
+        """ufuncs that return a value with the same unit as the input"""
+        if Version(np.__version__) >= Version("2.5.0") and ufunc in (
+            np_umath.real,
+            np_umath.imag,
+        ):
+            pytest.skip(
+                f"{ufunc.__name__} requires complex Quantities, which are possible but not supported by UnitsExtensionArray"
+            )
         q = [-1.5, 0, 2.5] * u.m
         result = ufunc(pd.Series(q, dtype="unit"))
         expected = pd.Series(UnitsExtensionArray(ufunc(q)))
         tm.assert_series_equal(result, expected)
 
-    def test_sqrt_changes_unit(self):
-        areas = pd.Series([4, 9, 16] * u.m**2, dtype="unit")
-        result = np.sqrt(areas)
-        expected = pd.Series([2, 3, 4], dtype="unit[m]")
+    @pytest.mark.parametrize(
+        ("ufunc", "arg", "expected"),
+        [
+            pytest.param(
+                np.sqrt,
+                [4, 9, 16] * u.m**2,
+                [2, 3, 4] * u.m,
+                id="sqrt",
+            ),
+            pytest.param(
+                np.square,
+                [2, 3, 4] * u.m,
+                [4, 9, 16] * u.m**2,
+                id="square",
+            ),
+            pytest.param(
+                np.reciprocal,
+                [0.5, 1, 2] * u.s,
+                [2, 1, 0.5] * u.Hz,
+                id="reciprocal",
+            ),
+            pytest.param(
+                np.cbrt,
+                [8, 27, 64] * u.m**3,
+                [2, 3, 4] * u.m,
+                id="cbrt",
+            ),
+            pytest.param(
+                np_umath._ones_like,
+                [1, 2, 3] * u.m,
+                [1, 1, 1] * u.dimensionless_unscaled,
+                id="ones_like",
+            ),
+        ],
+    )
+    def test_special_case_ufunc(self, ufunc, arg, expected):
+        """ufuncs that return a value with a different unit than the input"""
+        result = ufunc(pd.Series(arg, dtype="unit"))
+        tm.assert_series_equal(result, pd.Series(expected, dtype="unit"))
+
+    @pytest.mark.parametrize(
+        ("ufunc", "arg", "expected"),
+        [
+            pytest.param(
+                np.modf,
+                [1.5, 2.5, 3.5] * u.dimensionless_unscaled,
+                (
+                    pd.Series([0.5, 0.5, 0.5], dtype="unit"),
+                    pd.Series([1, 2, 3], dtype="unit"),
+                ),
+                id="modf",
+            ),
+            pytest.param(
+                np.frexp,
+                [1.5, 2.5, 3.5] * u.dimensionless_unscaled,
+                (pd.Series([0.75, 0.625, 0.875]), pd.Series([1, 2, 2])),
+                id="frexp",
+            ),
+        ],
+    )
+    def test_special_case_ufunc_two_results(self, ufunc, arg, expected):
+        """Similar to test_special_case_ufunc for ufuncs that return a tuple of two results"""
+        result = ufunc(pd.Series(arg, dtype="unit"))
+        tm.assert_series_equal(result[0], expected[0], check_dtype=False)
+        tm.assert_series_equal(result[1], expected[1], check_dtype=False)
+
+    # TWO ARGUMENT UFUNCS
+    TWOARG_DIMENSIONLESS_UFUNCS = sorted(
+        qh.helpers.two_arg_dimensionless_ufuncs + qh.helpers.twoarg_invtrig_ufuncs,
+        key=lambda uf: uf.__name__,
+    )
+    TWOARG_INVARIANT_UFUNCS = sorted(
+        qh.helpers.twoarg_invariant_ufuncs, key=lambda uf: uf.__name__
+    )
+    TWOARG_COMPARISON_UFUNCS = sorted(
+        qh.helpers.twoarg_comparison_ufuncs, key=lambda uf: uf.__name__
+    )
+
+    @pytest.mark.parametrize("ufunc", TWOARG_DIMENSIONLESS_UFUNCS)
+    def test_twoarg_dimensionless_ufuncs(self, ufunc):
+        """ufuncs that accept only dimensionless Quantities"""
+        q1 = [0.25, 0.5, 0.75] * u.dimensionless_unscaled
+        q2 = [0.5, 0.25, 0.75] * u.dimensionless_unscaled
+        result = ufunc(pd.Series(q1, dtype="unit"), pd.Series(q2, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(ufunc(q1, q2)))
         tm.assert_series_equal(result, expected)
 
+    @pytest.mark.parametrize("ufunc", TWOARG_INVARIANT_UFUNCS)
+    def test_twoarg_invariant_ufuncs(self, ufunc):
+        """ufuncs that return a value with the same unit as the input"""
+        q1 = [1, 2, 3] * u.m
+        q2 = [4, 5, 6] * u.m
+        result = ufunc(pd.Series(q1, dtype="unit"), pd.Series(q2, dtype="unit"))
+        expected = pd.Series(UnitsExtensionArray(ufunc(q1, q2)))
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.parametrize("ufunc", TWOARG_COMPARISON_UFUNCS)
+    def test_twoarg_comparison_ufuncs(self, ufunc):
+        """ufuncs that return a boolean array"""
+        q1 = [1, 2, 3] * u.m
+        q2 = [4, 2, 1] * u.m
+        result = ufunc(pd.Series(q1, dtype="unit"), pd.Series(q2, dtype="unit"))
+        expected = pd.Series(ufunc(q1, q2))
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.parametrize(
+        ("ufunc", "arg1", "arg2", "expected"),
+        [
+            pytest.param(
+                np.multiply,
+                pd.Series([1, 2, 3] * u.m, dtype="unit"),
+                pd.Series([4, 5, 6] * u.m, dtype="unit"),
+                pd.Series([4, 10, 18] * u.m**2, dtype="unit"),
+                id="multiply",
+            ),
+            pytest.param(
+                np.matmul,
+                pd.Series([[1, 2], [3, 4]] * u.m, dtype="unit"),
+                pd.Series([[5, 6], [7, 8]] * u.m, dtype="unit"),
+                pd.Series([[19, 22], [43, 50]] * u.m**2, dtype="unit"),
+                marks=pytest.mark.xfail(
+                    reason="matmul for 2D dimensional array is not boxed into Series and requires __array_function__ support"
+                ),
+                id="matmul",
+            ),
+            pytest.param(
+                np.vecdot,
+                pd.Series([[1, 2], [3, 4]] * u.m, dtype="unit"),
+                pd.Series([[5, 6], [7, 8]] * u.m, dtype="unit"),
+                pd.Series([17, 53] * u.m**2, dtype="unit"),
+                id="vecdot",
+            ),
+            pytest.param(
+                np.vecmat,
+                pd.Series([[1, 2], [3, 4]] * u.m, dtype="unit"),
+                pd.Series([[5, 6], [7, 8]] * u.m, dtype="unit"),
+                pd.Series([[19, 22], [43, 50]] * u.m**2, dtype="unit"),
+                id="vecmat",
+            ),
+            pytest.param(
+                np.matvec,
+                pd.Series([[1, 2], [3, 4]] * u.m, dtype="unit"),
+                pd.Series([5, 6] * u.m, dtype="unit"),
+                pd.Series([17, 39] * u.m**2, dtype="unit"),
+                id="matvec",
+            ),
+            pytest.param(
+                np.divide,
+                pd.Series([4, 10, 18] * u.m, dtype="unit"),
+                pd.Series([1, 2, 3] * u.s, dtype="unit"),
+                pd.Series([4, 5, 6] * u.m / u.s, dtype="unit"),
+                id="divide",
+            ),
+            pytest.param(
+                np.true_divide,
+                pd.Series([4, 10, 18] * u.m, dtype="unit"),
+                pd.Series([1, 2, 3] * u.s, dtype="unit"),
+                pd.Series([4, 5, 6] * u.m / u.s, dtype="unit"),
+                id="true_divide",
+            ),
+            pytest.param(
+                np.power,
+                pd.Series([2, 3, 4] * u.m, dtype="unit"),
+                3,
+                pd.Series([8, 27, 64] * u.m**3, dtype="unit"),
+                id="power",
+            ),
+            pytest.param(
+                np.ldexp,
+                pd.Series([1, 2, 3] * u.m, dtype="unit"),
+                pd.Series([2, 3, 4]),
+                pd.Series([4, 16, 48] * u.m, dtype="unit"),
+                id="ldexp",
+            ),
+            pytest.param(
+                np.copysign,
+                pd.Series([1, -2, 3] * u.m, dtype="unit"),
+                pd.Series([1, 2, -3] * u.m, dtype="unit"),
+                pd.Series([1, 2, -3] * u.m, dtype="unit"),
+                id="copysign",
+            ),
+            pytest.param(
+                np.floor_divide,
+                pd.Series([4, 10, 18] * u.m, dtype="unit"),
+                pd.Series([3, 4, 5] * u.m, dtype="unit"),
+                pd.Series([1, 2, 3], dtype="unit"),
+                id="floor_divide",
+            ),
+            pytest.param(
+                np.heaviside,
+                pd.Series([-1, 0, 1] * u.m, dtype="unit"),
+                pd.Series([5, 6, 7] * u.dimensionless_unscaled, dtype="unit"),
+                pd.Series([0, 6, 1] * u.dimensionless_unscaled, dtype="unit"),
+                id="heaviside",
+            ),
+            pytest.param(
+                np.float_power,
+                pd.Series([2, 3, 4] * u.m, dtype="unit"),
+                3,
+                pd.Series([8, 27, 64] * u.m**3, dtype="unit"),
+                id="float_power",
+            ),
+        ],
+    )
+    def test_twoarg_special_case_ufunc(self, ufunc, arg1, arg2, expected):
+        """ufuncs that take two arguments and return a value with a different unit than the input"""
+        result = ufunc(arg1, arg2)
+        tm.assert_series_equal(result, expected)
+
+    @pytest.mark.parametrize(
+        ("ufunc", "arg1", "arg2", "expected"),
+        [
+            pytest.param(
+                np.divmod,
+                [4, 10, 18] * u.m,
+                [3, 4, 5] * u.m,
+                (
+                    pd.Series([1, 2, 3], dtype="unit"),
+                    pd.Series([1, 2, 3] * u.m, dtype="unit"),
+                ),
+                id="divmod",
+            ),
+        ],
+    )
+    def test_twoarg_special_case_ufunc_two_results(self, ufunc, arg1, arg2, expected):
+        """Similar to test_twoarg_special_case_ufunc for ufuncs that return a tuple of two results"""
+        result = ufunc(pd.Series(arg1, dtype="unit"), pd.Series(arg2, dtype="unit"))
+        tm.assert_series_equal(result[0], expected[0], check_dtype=False)
+        tm.assert_series_equal(result[1], expected[1], check_dtype=False)
+
+    # Other tests
     @pytest.mark.parametrize("ufunc", ANGLE_UFUNCS)
     def test_incompatible_unit_raises(self, ufunc):
         lengths = pd.Series([1, 2] * u.m, dtype="unit")
