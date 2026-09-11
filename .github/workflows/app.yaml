@@ -17,6 +17,7 @@ jobs:
 
           - os: macos-latest
             python: "3.14"
+      fail-fast: false
 
     runs-on: ${{ matrix.os }}
 
