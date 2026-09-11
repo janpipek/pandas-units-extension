@@ -1118,7 +1118,7 @@ class TestAssertEqual:
         tm.assert_series_equal(a, a)
 
     @pytest.mark.xfail(reason="Double iteration in assert_almost_equal - pandas bug?")
-    def test_within_rtol(self):
+    def test_within_tolerance(self):
         a = pd.Series([1, 2, 3], dtype="unit[m]")
         b = pd.Series([1, 2, 3.0001], dtype="unit")
         tm.assert_series_equal(a, b, atol=1e-3)
