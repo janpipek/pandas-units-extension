@@ -1110,3 +1110,28 @@ class TestJsonRoundTrip:
 
         tm.assert_series_equal(result, expected, check_names=False)
         assert result.array.dtype == expected.array.dtype
+
+
+class TestAssertEqual:
+    def test_equal(self):
+        a = pd.Series([1, 2, 3], dtype="unit[m]")
+        tm.assert_series_equal(a, a)
+
+    @pytest.mark.xfail(reason="Double iteration in assert_almost_equal - pandas bug?")
+    def test_within_rtol(self):
+        a = pd.Series([1, 2, 3], dtype="unit[m]")
+        b = pd.Series([1, 2, 3.0001], dtype="unit")
+        tm.assert_series_equal(a, b, atol=1e-3)
+
+    @pytest.mark.xfail(reason="Double iteration in assert_almost_equal - pandas bug?")
+    def test_different_values(self):
+        a = pd.Series([1, 2, 3], dtype="unit[m]")
+        b = pd.Series([1, 2, 4], dtype="unit[m]")
+        with pytest.raises(AssertionError, match="Series values are different"):
+            tm.assert_series_equal(a, b)
+
+    def test_different_unit(self):
+        a = pd.Series([1, 2, 3], dtype="unit[m]")
+        b = pd.Series([1, 2, 3], dtype="unit[s]")
+        with pytest.raises(AssertionError, match='Attribute "dtype" are different'):
+            tm.assert_series_equal(a, b)
