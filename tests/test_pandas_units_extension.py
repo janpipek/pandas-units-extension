@@ -941,23 +941,17 @@ class TestUfuncs:
     # additions get tested automatically. Sorted for deterministic test ids.
 
     # SINGLE ARGUMENT UFUNCS
-    ONEARG_TEST_UFUNC = sorted(
-        qh.helpers.onearg_test_ufuncs, key=lambda uf: uf.__name__
-    )
-    ANGLE_UFUNCS = sorted(
+    ONEARG_TEST_UFUNC = qh.helpers.onearg_test_ufuncs
+    ANGLE_UFUNCS = (
         qh.helpers.radian_to_dimensionless_ufuncs
         + qh.helpers.degree_to_radian_ufuncs
-        + qh.helpers.radian_to_degree_ufuncs,
-        key=lambda uf: uf.__name__,
+        + qh.helpers.radian_to_degree_ufuncs
     )
-    DIMENSIONLESS_UFUNCS = sorted(
+    DIMENSIONLESS_UFUNCS = (
         qh.helpers.dimensionless_to_radian_ufuncs
-        + qh.helpers.dimensionless_to_dimensionless_ufuncs,
-        key=lambda uf: uf.__name__,
+        + qh.helpers.dimensionless_to_dimensionless_ufuncs
     )
-    INVARIANT_UFUNCS = sorted(
-        set(qh.helpers.invariant_ufuncs), key=lambda uf: uf.__name__
-    )
+    INVARIANT_UFUNCS = qh.helpers.invariant_ufuncs
 
     @pytest.mark.parametrize("ufunc", ONEARG_TEST_UFUNC)
     def test_onearg_test_ufuncs(self, ufunc):
@@ -1073,16 +1067,11 @@ class TestUfuncs:
         tm.assert_series_equal(result[1], expected[1], check_dtype=False)
 
     # TWO ARGUMENT UFUNCS
-    TWOARG_DIMENSIONLESS_UFUNCS = sorted(
-        qh.helpers.two_arg_dimensionless_ufuncs + qh.helpers.twoarg_invtrig_ufuncs,
-        key=lambda uf: uf.__name__,
+    TWOARG_DIMENSIONLESS_UFUNCS = (
+        qh.helpers.two_arg_dimensionless_ufuncs + qh.helpers.twoarg_invtrig_ufuncs
     )
-    TWOARG_INVARIANT_UFUNCS = sorted(
-        qh.helpers.twoarg_invariant_ufuncs, key=lambda uf: uf.__name__
-    )
-    TWOARG_COMPARISON_UFUNCS = sorted(
-        qh.helpers.twoarg_comparison_ufuncs, key=lambda uf: uf.__name__
-    )
+    TWOARG_INVARIANT_UFUNCS = qh.helpers.twoarg_invariant_ufuncs
+    TWOARG_COMPARISON_UFUNCS = qh.helpers.twoarg_comparison_ufuncs
 
     @pytest.mark.parametrize("ufunc", TWOARG_DIMENSIONLESS_UFUNCS)
     def test_twoarg_dimensionless_ufuncs(self, ufunc):
