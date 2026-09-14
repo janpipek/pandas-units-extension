@@ -1023,8 +1023,8 @@ class TestUfuncs:
             ),
             pytest.param(
                 np.cbrt,
-                [8, 27, 64] * u.m**3,
-                [2, 3, 4] * u.m,
+                [8, 64, 125] * u.m**3,
+                [2, 4, 5] * u.m,
                 id="cbrt",
             ),
             pytest.param(
