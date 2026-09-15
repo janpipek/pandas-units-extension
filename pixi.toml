@@ -1,0 +1,114 @@
+[workspace]
+authors = [
+    "Jan Pipek <jan.pipek@gmail.com>",
+    "Julian Harbeck <julian-harbeck@outlook.de>",
+]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+preview = ["pixi-build"]
+
+# Needed for conflicts between nightly versions of astropy and pandas the dependency of 
+# pandas-units-extension which is solved first, otherwise will not update to nightly
+[workspace.conda-pypi-map]
+conda-forge = { mapping = { astropy = false, pandas = false } }
+
+[dependencies]
+pandas-units-extension = { path = "." }
+
+[package]  
+name = "pandas-units-extension"
+version = "0.2.1"
+
+[package.build]  
+backend = { name = "pixi-build-python", version = "0.*" }
+
+[package.host-dependencies]  
+hatchling = "==1.26.3"
+
+[package.run-dependencies]  
+# astropy and pandas handled with dedicated features
+numpy = ">=2.2"
+typing-extensions = ">=4.5.0"
+
+
+# Nightly variant features of core packages
+[feature.astropy.dependencies]
+astropy = ">=7.2"
+
+[feature.astropy-nightly.pypi-dependencies]
+astropy = { version = ">=8.1.0.dev", index = "https://pypi.anaconda.org/astropy/simple" }
+
+[feature.pandas.dependencies]
+pandas = ">=3.0.5"
+
+[feature.pandas-nightly.pypi-dependencies]
+pandas = { version = ">=3.1.0.dev0", index = "https://pypi.anaconda.org/scientific-python-nightly-wheels/simple" }
+
+
+# Python versions
+[feature.py311.dependencies]
+python = "3.11.*"
+
+[feature.py312.dependencies]
+python = "3.12.*"
+
+[feature.py313.dependencies]
+python = "3.13.*"
+
+[feature.py314.dependencies]
+python = "3.14.*"
+
+
+# Testing dependencies and tasks
+[feature.test-base.dependencies]
+hypothesis = ">=6.116.0"
+packaging = ">=22"
+pytest = ">=9.1.1"
+
+[feature.test-base.tasks.test]
+args = [{ arg = "target", default = "tests/" }]
+cmd = "pytest {{ target }}"
+default-environment = "py314"
+description = "Run pytest test suite, defaults to target all tests in tests/"
+
+
+# Typing dependencies and task
+[feature.typing.dependencies]
+pre-commit = ">=4.2.0"
+mypy = "==2.1.0"
+
+[feature.typing.tasks.typing]
+cmd = "pre-commit run"
+default-environment = "typing"
+description = "Run pre-commit for automatic formatting"
+
+
+# Minimum versions creates environment with all direct dependencies at their lowest
+# specified version
+[feature.minimum-versions]
+solve-strategy = "lowest-direct"
+
+
+[environments]
+py311 = { features = ["py311", "astropy", "pandas", "test-base"] }
+py312 = { features = ["py312", "astropy", "pandas", "test-base"] }
+py313 = { features = ["py313", "astropy", "pandas", "test-base"] }
+py314 = { features = ["py314", "astropy", "pandas", "test-base"] }
+minimum-versions = { features = ["py311", "astropy", "pandas", "test-base", "minimum-versions"] }
+astropy-nightly = { features = ["py314", "astropy-nightly", "pandas", "test-base"] }
+pandas-nightly = { features = ["py314", "astropy", "pandas-nightly", "test-base"] }
+typing = { features = ["py314", "astropy", "pandas", "typing"] }
+
+
+[tasks]
+[tasks.test-all]
+cmd = """
+    pixi run -e py311 test -- -rfXE --tb=no
+    pixi run -e py312 test -- -rfXE --tb=no
+    pixi run -e py313 test -- -rfXE --tb=no
+    pixi run -e py314 test -- -rfXE --tb=no
+    pixi run -e minimum-versions test -- -rfXE --tb=no
+    pixi run -e astropy-nightly test -- -rfXE --tb=no
+    pixi run -e pandas-nightly test -- -rfXE --tb=no
+"""
+description = "Run task 'test' for all environments, hides traceback, but shows summary"
