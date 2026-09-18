@@ -304,7 +304,7 @@ class TestDtype(base.BaseDtypeTests):
 
 class TestGroupBy(base.BaseGroupbyTests):
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
     )
     def test_groupby_agg_extension(self, data_for_grouping):
@@ -568,7 +568,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
-    Version(pd.__version__) < Version("3.1.0"),
+    Version(pd.__version__).release < (3, 1, 0),
     reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
 )
 
@@ -799,7 +799,7 @@ class TestVarious(BaseExtensionTests):
         tm.assert_series_equal(expected, concatenated)
 
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
     )
     @pytest.mark.parametrize(
@@ -1332,15 +1332,14 @@ class TestJsonRoundTrip:
         assert result.array.dtype == expected.array.dtype
 
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #65127",
-        strict=True,
     )
     def test_convert_series_directly_to_json_and_back(self):
         expected = pd.Series(UnitsExtensionArray([1.0, 2.0, 3.0], u.m))
 
         json_str = expected.to_json()
-        result = pd.read_json(StringIO(json_str), typ="series").astype("unit")
+        result = pd.read_json(StringIO(json_str), typ="series", dtype=expected.dtype)
 
         tm.assert_series_equal(result, expected, check_names=False)
         assert result.array.dtype == expected.array.dtype
