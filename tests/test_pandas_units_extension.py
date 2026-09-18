@@ -191,12 +191,13 @@ def data_repeated(data):
     return gen
 
 
-# prod forbidden
 _all_numeric_reductions = [
+    "count",
     "sum",
     "max",
     "min",
     "mean",
+    "prod",
     "std",
     "var",
     "median",
@@ -407,6 +408,7 @@ class TestReduce(base.BaseReduceTests):
     def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
         # List all supported numeric reductions
         return op_name in {
+            "count",
             "sum",
             "max",
             "min",
@@ -432,8 +434,16 @@ class TestReduce(base.BaseReduceTests):
 
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
         # We must check float values
-        result = getattr(ser, op_name)(skipna=skipna).value
-        expected = getattr(ser.astype("float64"), op_name)(skipna=skipna)
+        res_op = getattr(ser, op_name)
+        exp_op = getattr(ser.astype("float64"), op_name)
+        # count does not support skipna
+        if op_name == "count":
+            result = res_op()
+            expected = exp_op()
+        else:
+            # We convert the result to float64 to compare float values
+            result: np.float64 = res_op(skipna=skipna).value
+            expected: np.float64 = exp_op(skipna=skipna)
         np.testing.assert_almost_equal(result, expected)
 
     # We include some trusted results on top of pandas' ones
@@ -469,10 +479,10 @@ class TestReduce(base.BaseReduceTests):
     def test_kurt(self, data):
         assert np.allclose(pd.Series(data).kurt(), 4.765020820939921)
 
-    def test_unsupported(self, data):
-        for method in ["any", "all", "prod"]:
-            with pytest.raises(TypeError):
-                getattr(pd.Series(data), method)()
+    @pytest.mark.parametrize("method", ["any", "all", "prod"])
+    def test_unsupported(self, data, method):
+        with pytest.raises(TypeError):
+            getattr(pd.Series(data), method)()
 
 
 class TestSetitem(base.BaseSetitemTests):
