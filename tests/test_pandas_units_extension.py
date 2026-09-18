@@ -231,6 +231,17 @@ def all_boolean_reductions(request):
     return request.param
 
 
+_all_reductions = _all_numeric_reductions + _all_boolean_reductions
+
+
+@pytest.fixture(params=_all_reductions)
+def all_reductions(request):
+    """
+    Fixture for all (boolean + numeric) reduction names.
+    """
+    return request.param
+
+
 @pytest.fixture(params=[True, False])
 def box_in_series(request):
     """Whether to box the data in a Series"""
@@ -483,6 +494,19 @@ class TestReduce(base.BaseReduceTests):
     def test_unsupported(self, data, method):
         with pytest.raises(TypeError):
             getattr(pd.Series(data), method)()
+
+    @pytest.mark.skipif(
+        Version(pd.__version__).release < (3, 1, 0),
+        reason="Only implemented for pandas >= 3.1.0",
+    )
+    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_array(self, request, data, all_reductions, skipna: bool):
+        # UnitsExtensionArray does implement dedicated reduction methods yet, therefore
+        # is expected to fail for reductions where _supports_reduction returns True
+        if self._supports_reduction(pd.Series(data), all_reductions):
+            pytest.xfail(f"Reduction {all_reductions} not supported for this dtype")
+        super().test_reduce_array(request, data, all_reductions, skipna)
 
 
 class TestSetitem(base.BaseSetitemTests):
