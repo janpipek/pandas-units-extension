@@ -9,3 +9,7 @@ doc/.ipynb_checkpoints/
 
 .idea/
 .vscode/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml

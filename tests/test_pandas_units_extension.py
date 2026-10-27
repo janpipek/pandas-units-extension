@@ -191,12 +191,13 @@ def data_repeated(data):
     return gen
 
 
-# prod forbidden
 _all_numeric_reductions = [
+    "count",
     "sum",
     "max",
     "min",
     "mean",
+    "prod",
     "std",
     "var",
     "median",
@@ -227,6 +228,17 @@ def all_numeric_accumulations(request):
 
 @pytest.fixture(params=_all_boolean_reductions)
 def all_boolean_reductions(request):
+    return request.param
+
+
+_all_reductions = _all_numeric_reductions + _all_boolean_reductions
+
+
+@pytest.fixture(params=_all_reductions)
+def all_reductions(request):
+    """
+    Fixture for all (boolean + numeric) reduction names.
+    """
     return request.param
 
 
@@ -304,7 +316,7 @@ class TestDtype(base.BaseDtypeTests):
 
 class TestGroupBy(base.BaseGroupbyTests):
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #64111",
     )
     def test_groupby_agg_extension(self, data_for_grouping):
@@ -342,7 +354,31 @@ class TestInterface(base.BaseInterfaceTests):
 
 
 class TestMethods(base.BaseMethodsTests):
-    def test_searchsorted_unit_aware(self, data_for_sorting, as_series):
+    where_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
+        Version(pd.__version__).release >= (3, 1, 0),
+        reason="Test fails on pandas above 3.1.0, see pandas GH #67925 as list of Quantities (other object of where) is tried to be converted to a floats",
+    )
+    where_mark_skipif: pytest.MarkDecorator = pytest.mark.skipif(
+        Version(pd.__version__).release < (3, 1, 0),
+        reason="Only implemented for pandas >= 3.1.0",
+    )
+
+    @where_mark_xfail
+    @where_mark_skipif
+    def test_where_series_listlike_other(self, data):
+        super().test_where_series_listlike_other(data)
+
+    @where_mark_xfail
+    @where_mark_skipif
+    def test_where_series_listlike_other_wrong_length(self, data):
+        super().test_where_series_listlike_other_wrong_length(data)
+
+    @where_mark_xfail
+    @where_mark_skipif
+    def test_mask_listlike_other_inplace(self, data):
+        super().test_mask_listlike_other_inplace(data)
+
+    def test_searchsorted_unit_aware(self, as_series):
         arr: UnitsExtensionArray = UnitsExtensionArray([1, 2, 3], u.m)
 
         if as_series:
@@ -407,6 +443,7 @@ class TestReduce(base.BaseReduceTests):
     def _supports_reduction(self, ser: pd.Series, op_name: str) -> bool:
         # List all supported numeric reductions
         return op_name in {
+            "count",
             "sum",
             "max",
             "min",
@@ -432,8 +469,16 @@ class TestReduce(base.BaseReduceTests):
 
     def check_reduce(self, ser: pd.Series, op_name: str, skipna: bool):
         # We must check float values
-        result = getattr(ser, op_name)(skipna=skipna).value
-        expected = getattr(ser.astype("float64"), op_name)(skipna=skipna)
+        res_op = getattr(ser, op_name)
+        exp_op = getattr(ser.astype("float64"), op_name)
+        # count does not support skipna
+        if op_name == "count":
+            result = res_op()
+            expected = exp_op()
+        else:
+            # We convert the result to float64 to compare float values
+            result: np.float64 = res_op(skipna=skipna).value
+            expected: np.float64 = exp_op(skipna=skipna)
         np.testing.assert_almost_equal(result, expected)
 
     # We include some trusted results on top of pandas' ones
@@ -469,10 +514,27 @@ class TestReduce(base.BaseReduceTests):
     def test_kurt(self, data):
         assert np.allclose(pd.Series(data).kurt(), 4.765020820939921)
 
-    def test_unsupported(self, data):
-        for method in ["any", "all", "prod"]:
-            with pytest.raises(TypeError):
-                getattr(pd.Series(data), method)()
+    @pytest.mark.parametrize("method", ["any", "all", "prod"])
+    def test_unsupported(self, data, method):
+        with pytest.raises(TypeError):
+            getattr(pd.Series(data), method)()
+
+    @pytest.mark.skipif(
+        Version(pd.__version__).release < (3, 1, 0),
+        reason="Only implemented for pandas >= 3.1.0",
+    )
+    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
+    @pytest.mark.parametrize("skipna", [True, False])
+    def test_reduce_array(self, request, data, all_reductions, skipna: bool):
+        # UnitsExtensionArray does implement dedicated reduction methods yet, therefore
+        # is expected to fail for reductions where _supports_reduction returns True
+        if all_reductions == "count":
+            pytest.xfail(
+                "Reduction count is not supported by UnitsExtensionArray._reduce"
+            )
+        # if self._supports_reduction(pd.Series(data), all_reductions):
+        #     pytest.xfail(f"Reduction {all_reductions} not supported for this dtype")
+        super().test_reduce_array(request, data, all_reductions, skipna)
 
 
 class TestSetitem(base.BaseSetitemTests):
@@ -521,6 +583,13 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
     frame_scalar_exc = None
     series_array_exc = None
 
+    @pytest.mark.xfail(
+        Version(pd.__version__).release >= (3, 1, 0),
+        reason="Test fails on pandas above 3.1.0, see pandas GH #67291 as UnitsExtensionArray not compatible with zerodim object array",
+    )
+    def test_arith_series_with_array(self, data, all_arithmetic_operators):
+        super().test_arith_series_with_array(data, all_arithmetic_operators)
+
     def test_arith_series_with_scalar_pow(self, data):
         s = pd.Series(data)
         result = s**2
@@ -568,7 +637,7 @@ class TestArithmeticsOps(base.BaseArithmeticOpsTests):
 
 
 compare_scalar_mark_xfail: pytest.MarkDecorator = pytest.mark.xfail(
-    Version(pd.__version__) < Version("3.1.0"),
+    Version(pd.__version__).release < (3, 1, 0),
     reason="Test fails on pandas below 3.1.0, see pandas GH #64365",
 )
 
@@ -799,7 +868,7 @@ class TestVarious(BaseExtensionTests):
         tm.assert_series_equal(expected, concatenated)
 
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #62523",
     )
     @pytest.mark.parametrize(
@@ -1332,15 +1401,14 @@ class TestJsonRoundTrip:
         assert result.array.dtype == expected.array.dtype
 
     @pytest.mark.xfail(
-        Version(pd.__version__) < Version("3.1.0"),
+        Version(pd.__version__).release < (3, 1, 0),
         reason="Test fails on pandas below 3.1.0, see pandas GH #65127",
-        strict=True,
     )
     def test_convert_series_directly_to_json_and_back(self):
         expected = pd.Series(UnitsExtensionArray([1.0, 2.0, 3.0], u.m))
 
         json_str = expected.to_json()
-        result = pd.read_json(StringIO(json_str), typ="series").astype("unit")
+        result = pd.read_json(StringIO(json_str), typ="series", dtype=expected.dtype)
 
         tm.assert_series_equal(result, expected, check_names=False)
         assert result.array.dtype == expected.array.dtype
@@ -1351,13 +1419,33 @@ class TestAssertEqual:
         a = pd.Series([1, 2, 3], dtype="unit[m]")
         tm.assert_series_equal(a, a)
 
-    @pytest.mark.xfail(reason="Double iteration in assert_almost_equal - pandas bug?")
+    @pytest.mark.xfail(
+        Version(pd.__version__).release < (3, 1, 0),
+        reason="Double iteration in assert_almost_equal - fixed in pandas GH #68927",
+    )
     def test_within_tolerance(self):
         a = pd.Series([1, 2, 3], dtype="unit[m]")
-        b = pd.Series([1, 2, 3.0001], dtype="unit")
+        b = pd.Series([1, 2, 3.0001], dtype="unit[m]")
         tm.assert_series_equal(a, b, atol=1e-3)
 
-    @pytest.mark.xfail(reason="Double iteration in assert_almost_equal - pandas bug?")
+    @pytest.mark.xfail(
+        Version(pd.__version__).release < (3, 1, 0),
+        reason="Double iteration in assert_almost_equal - fixed in pandas GH #68927",
+    )
+    def test_within_tolerance_unit_aware(self):
+        a = pd.Series([1, 2, 3], dtype="unit[m]")
+        b = pd.Series([1, 2, 3.0001], dtype="unit[m]")
+        # atol of 1 mm is 0.001 m, so this should pass
+        tm.assert_series_equal(a, b, atol=1 * u.mm)
+
+        # atol of 1 nm is 1e-9 m, so this should fail
+        with pytest.raises(AssertionError, match="Series values are different"):
+            tm.assert_series_equal(a, b, atol=1 * u.nm)
+
+    @pytest.mark.xfail(
+        Version(pd.__version__).release < (3, 1, 0),
+        reason="Double iteration in assert_almost_equal - fixed in pandas GH #68927",
+    )
     def test_different_values(self):
         a = pd.Series([1, 2, 3], dtype="unit[m]")
         b = pd.Series([1, 2, 4], dtype="unit[m]")
