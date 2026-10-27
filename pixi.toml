@@ -58,6 +58,9 @@ python = "3.13.*"
 [feature.py314.dependencies]
 python = "3.14.*"
 
+[feature.py315.dependencies]
+python = "3.15.*"
+
 
 # Testing dependencies and tasks
 [feature.test-base.dependencies]
@@ -68,14 +71,14 @@ pytest = ">=9.1.1"
 [feature.test-base.tasks.test]
 args = [{ arg = "target", default = "tests/" }]
 cmd = "pytest {{ target }}"
-default-environment = "py314"
+default-environment = "py315"
 description = "Run pytest test suite, defaults to target all tests in tests/"
 
 
 # Typing dependencies and task
 [feature.typing.dependencies]
 pre-commit = ">=4.2.0"
-mypy = "==2.1.0"
+mypy = ">=2.1.0"
 
 [feature.typing.tasks.typing]
 cmd = "pre-commit run"
@@ -94,21 +97,23 @@ py311 = { features = ["py311", "astropy", "pandas", "test-base"] }
 py312 = { features = ["py312", "astropy", "pandas", "test-base"] }
 py313 = { features = ["py313", "astropy", "pandas", "test-base"] }
 py314 = { features = ["py314", "astropy", "pandas", "test-base"] }
+py315 = { features = ["py315", "astropy", "pandas", "test-base"] }
 minimum-versions = { features = ["py311", "astropy", "pandas", "test-base", "minimum-versions"] }
-astropy-nightly = { features = ["py314", "astropy-nightly", "pandas", "test-base"] }
-pandas-nightly = { features = ["py314", "astropy", "pandas-nightly", "test-base"] }
-typing = { features = ["py314", "astropy", "pandas", "typing"] }
+astropy-nightly = { features = ["py315", "astropy-nightly", "pandas", "test-base"] }
+pandas-nightly = { features = ["py315", "astropy", "pandas-nightly", "test-base"] }
+typing = { features = ["py315", "astropy", "pandas", "typing"] }
 
 
 [tasks]
 [tasks.test-all]
 cmd = """
-    pixi run -e py311 test -- -rfXE --tb=no
-    pixi run -e py312 test -- -rfXE --tb=no
-    pixi run -e py313 test -- -rfXE --tb=no
-    pixi run -e py314 test -- -rfXE --tb=no
-    pixi run -e minimum-versions test -- -rfXE --tb=no
-    pixi run -e astropy-nightly test -- -rfXE --tb=no
-    pixi run -e pandas-nightly test -- -rfXE --tb=no
+    pixi run --as-is -e py311 test -- -rfXE --tb=no
+    pixi run --as-is -e py312 test -- -rfXE --tb=no
+    pixi run --as-is -e py313 test -- -rfXE --tb=no
+    pixi run --as-is -e py314 test -- -rfXE --tb=no
+    pixi run --as-is -e py315 test -- -rfXE --tb=no
+    pixi run --as-is -e minimum-versions test -- -rfXE --tb=no
+    pixi run --as-is -e astropy-nightly test -- -rfXE --tb=no
+    pixi run --as-is -e pandas-nightly test -- -rfXE --tb=no
 """
 description = "Run task 'test' for all environments, hides traceback, but shows summary"
