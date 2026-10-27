@@ -10,42 +10,39 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest"]
-        python: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        environment: [py311, py312, py313, py314, py315, minimum-versions, astropy-nightly, pandas-nightly]
         include:
           - os: windows-latest
-            python: "3.15"
-
+            environment: py315
           - os: macos-latest
-            python: "3.15"
+            environment: py315            
       fail-fast: false
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Create virtual environment with Pixi
+        uses: prefix-dev/setup-pixi@v0.11.2
         with:
-          version: "0.13.0"
-          python-version: ${{ matrix.python }}
-          enable-cache: true
-
-      - name: Install the project
-        run: uv sync --all-extras --dev
+          pixi-version: v0.83.0
+          cache: true
+          environments: ${{ matrix.environment }}
 
       - name: Run pytest
-        run: uv run pytest
+        run: pixi run -e ${{ matrix.environment }} test
+
 
   pre-commit:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
       - uses: pre-commit/action@v3.0.1
 
@@ -53,13 +50,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           version: "0.11.2"
-          python-version: "3.14"
+          python-version: "3.15"
           enable-cache: true
 
       - name: Install the project
